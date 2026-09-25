@@ -1,0 +1,1907 @@
+<title>Ledger Line Reports</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+  :root{
+    --bg:#ffffff;
+    --surface:#ffffff;
+    --surface-alt:#f4f6f9;
+    --border:#d7dce3;
+    --text:#1c2530;
+    --text-muted:#616d7d;
+    --accent:#2f6feb;
+    --accent-strong:#1f4fc4;
+    --accent-soft:#e9f0fe;
+    --accent-contrast:#ffffff;
+    --warn:#b6541c;
+    --warn-soft:#f8e6d9;
+    --danger:#b3261e;
+    --focus:#2f6feb;
+    --shadow:0 1px 2px rgba(20,30,40,.06), 0 8px 24px rgba(20,30,40,.06);
+    --brand-blue:#2f6feb;
+    --brand-blue-dark:#1f4fc4;
+    --brand-gradient:linear-gradient(135deg,#2f5fe0 0%,#3fa0e6 100%);
+    color-scheme:light;
+  }
+  /* This page always renders in its branded light/blue theme regardless of the visitor's
+     system dark-mode preference — there is no in-page toggle, so we don't auto-switch on
+     prefers-color-scheme. A manual opt-in remains below for a future toggle if one is added. */
+  :root[data-theme="dark"]{
+    --bg:#0d1117; --surface:#151b23; --surface-alt:#1a212b; --border:#29323d;
+    --text:#e6ebf1; --text-muted:#93a1b1;
+    --accent:#6fa0fb; --accent-strong:#9dc0ff; --accent-soft:#132a52; --accent-contrast:#07142c; --focus:#6fa0fb;
+    --warn:#e0975a; --warn-soft:#3a2717; --danger:#ef6a61;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+    color-scheme:dark;
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:"Public Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    font-size:14px; line-height:1.45; min-height:100%;
+  }
+  .wrap{max-width:1220px;margin:0 auto;display:flex;flex-direction:column;gap:16px;padding:20px;}
+
+  /* --- QuickFile brand nav / hero / control card --- */
+  .site-nav{background:#ffffff;border-bottom:1px solid #e3e8f0;}
+  .nav-inner{max-width:1220px;margin:0 auto;display:flex;align-items:center;gap:26px;padding:14px 20px;flex-wrap:wrap;}
+  .nav-logo{display:flex;align-items:center;gap:10px;text-decoration:none;flex:none;}
+  .logo-text{font-weight:800;font-size:21px;letter-spacing:.2px;color:var(--brand-blue);}
+  .logo-badge{font-size:11px;font-weight:700;letter-spacing:.05em;color:var(--brand-blue);background:#eaf1fe;border-radius:6px;padding:3px 8px;text-transform:uppercase;}
+  .nav-links{display:flex;align-items:center;gap:22px;margin-right:auto;flex-wrap:wrap;}
+  .nav-links a{color:#3a4658;text-decoration:none;font-size:13.5px;font-weight:600;display:inline-flex;align-items:center;gap:6px;}
+  .nav-links a:hover{color:var(--brand-blue);}
+  .nav-actions{display:flex;align-items:center;gap:10px;flex:none;}
+  .btn-nav{display:inline-flex;align-items:center;gap:6px;background:var(--brand-blue);color:#fff;border-radius:8px;padding:8px 16px;font-size:13.5px;font-weight:700;text-decoration:none;border:1px solid var(--brand-blue);white-space:nowrap;}
+  .btn-nav:hover{background:var(--brand-blue-dark);border-color:var(--brand-blue-dark);}
+  .btn-nav.outline{background:#fff;color:var(--brand-blue);}
+  .btn-nav.outline:hover{background:#eaf1fe;}
+
+  .hero{background:var(--brand-gradient);color:#fff;}
+  .hero-inner{max-width:880px;margin:0 auto;text-align:center;display:flex;flex-direction:column;align-items:center;gap:16px;padding:40px 20px 68px;}
+  .hero-badge{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.35);border-radius:99px;padding:6px 16px;font-size:12.5px;font-weight:600;}
+  .hero h1{font-family:"Fraunces",Georgia,serif;font-weight:600;font-size:clamp(24px,3.6vw,36px);line-height:1.18;margin:0;}
+  .hero-sub{font-size:14.5px;line-height:1.6;color:rgba(255,255,255,.92);max-width:64ch;margin:0;}
+  .hero-stats{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;}
+  .stat-pill{display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.32);border-radius:99px;padding:6px 14px;font-size:12px;font-weight:600;white-space:nowrap;}
+  .hero-upload{display:flex;flex-direction:column;align-items:center;gap:9px;margin-top:4px;width:100%;}
+  .upload-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:center;}
+  .upload-btn{display:inline-flex;align-items:center;gap:8px;background:#fff;color:var(--brand-blue-dark);border-radius:9px;padding:11px 20px;font-weight:700;font-size:14px;cursor:pointer;box-shadow:0 4px 14px rgba(10,30,70,.2);}
+  .upload-btn:hover{background:#f2f6ff;}
+  .hero-upload .file-name{color:rgba(255,255,255,.92);max-width:340px;}
+  .hero-privacy{font-size:12px;color:rgba(255,255,255,.85);display:flex;align-items:center;gap:6px;}
+
+  .control-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);overflow:hidden;}
+  .control-card .report-picker{border:none;border-radius:0;box-shadow:none;border-bottom:1px solid var(--border);}
+  .control-card .toolbar{border:none;border-radius:0;box-shadow:none;}
+  .tabular{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums;}
+
+  header.top{
+    display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px;
+    padding-bottom:14px;border-bottom:1px solid var(--border);
+  }
+  .brand{display:flex;flex-direction:column;gap:2px;}
+  .brand .mark{font-family:"Fraunces",Georgia,serif;font-weight:600;font-size:26px;letter-spacing:.2px;display:flex;align-items:baseline;gap:8px;}
+  .brand .mark .dot{color:var(--accent);}
+  .brand .tag{color:var(--text-muted);font-size:13px;max-width:50ch;}
+
+  .file-panel{display:flex;flex-direction:column;align-items:flex-end;gap:6px;}
+  .file-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end;}
+  .btn{
+    appearance:none;border:1px solid var(--border);background:var(--surface);color:var(--text);
+    padding:8px 14px;border-radius:8px;font:inherit;font-weight:600;font-size:13px;cursor:pointer;
+    display:inline-flex;align-items:center;gap:8px;transition:background .15s, border-color .15s;
+  }
+  .btn:hover{border-color:var(--accent);}
+  .btn:focus-visible{outline:2px solid var(--focus);outline-offset:2px;}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-contrast);}
+  .btn.primary:hover{background:var(--accent-strong);border-color:var(--accent-strong);}
+  .btn.ghost{background:transparent;}
+  input[type="file"]{display:none;}
+  .file-name{font-size:12.5px;color:var(--text-muted);text-align:right;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .privacy-note{font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:6px;}
+  .privacy-note svg{flex:none;}
+
+  .banner{
+    display:flex;align-items:center;gap:10px;background:var(--warn-soft);
+    border:1px solid color-mix(in srgb, var(--warn) 40%, var(--border));
+    color:var(--text);padding:9px 14px;border-radius:9px;font-size:13px;
+  }
+  .banner strong{color:var(--warn);}
+  .banner[hidden]{display:none;}
+  .error{
+    background:color-mix(in srgb, var(--danger) 12%, var(--surface));
+    border:1px solid color-mix(in srgb, var(--danger) 45%, var(--border));
+    color:var(--text);padding:10px 14px;border-radius:9px;font-size:13px;
+  }
+
+  .report-picker{
+    display:flex;flex-wrap:wrap;gap:14px 20px;align-items:flex-start;
+    background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;box-shadow:var(--shadow);
+  }
+  .report-picker .field{min-width:260px;}
+  .report-picker .desc{color:var(--text-muted);font-size:12.5px;max-width:56ch;padding-top:19px;}
+  .report-picker .badge{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--text-muted);background:var(--surface-alt);border:1px solid var(--border);border-radius:99px;padding:2px 9px;align-self:center;margin-top:19px;}
+
+  .toolbar{
+    display:flex;flex-wrap:wrap;gap:10px 14px;align-items:end;
+    background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;box-shadow:var(--shadow);
+  }
+  .toolbar[hidden]{display:none;}
+  .field{display:flex;flex-direction:column;gap:4px;min-width:0;}
+  .field[hidden]{display:none;}
+  .field label{font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;}
+  .field input,.field select{
+    font:inherit;font-size:13px;padding:7px 9px;border-radius:7px;border:1px solid var(--border);
+    background:var(--surface-alt);color:var(--text);min-width:0;
+  }
+  .field input:focus-visible,.field select:focus-visible{outline:2px solid var(--focus);outline-offset:1px;}
+  .field.search{flex:1 1 220px;}
+  .field.search input{width:100%;}
+  .field.party select,.field.nominal select{max-width:220px;}
+  .field.daterange{flex-direction:row;align-items:end;gap:8px;}
+  .field.daterange .sub{display:flex;flex-direction:column;gap:4px;}
+  .field.daterange input{width:130px;}
+  .monthyear{display:flex;gap:6px;}
+  .monthyear select{width:92px;}
+  .monthyear select:last-child{width:80px;}
+  .toolbar-actions{display:flex;flex-wrap:wrap;gap:8px;margin-left:auto;align-self:end;justify-content:flex-end;}
+
+  .summary-strip{
+    display:flex;flex-wrap:wrap;gap:22px;align-items:baseline;
+    background:var(--accent-soft);border:1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+    border-radius:10px;padding:10px 16px;
+  }
+  .summary-strip .stat{display:flex;flex-direction:column;gap:1px;}
+  .summary-strip .stat .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);}
+  .summary-strip .stat .v{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;font-size:16px;font-weight:600;color:var(--accent-strong);}
+  .summary-strip .stat[hidden]{display:none;}
+
+  .table-shell{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:var(--shadow);}
+  .table-scroll{overflow-x:auto;max-height:58vh;overflow-y:auto;}
+  table{border-collapse:collapse;width:100%;font-size:13px;min-width:720px;}
+  thead th{
+    position:sticky;top:0;background:var(--surface-alt);z-index:1;
+    text-align:left;padding:9px 12px;font-size:11px;text-transform:uppercase;letter-spacing:.04em;
+    color:var(--text-muted);border-bottom:1px solid var(--border);cursor:pointer;white-space:nowrap;user-select:none;
+  }
+  thead th:hover{color:var(--text);}
+  thead th .arrow{opacity:0;margin-left:4px;font-size:10px;}
+  thead th[data-sorted="asc"] .arrow,thead th[data-sorted="desc"] .arrow{opacity:1;color:var(--accent);}
+  thead th.num,td.num{text-align:right;}
+  tbody td{padding:8px 12px;border-bottom:1px solid var(--border);vertical-align:top;white-space:nowrap;}
+  tbody td.desc{white-space:normal;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:var(--surface-alt);}
+  tbody tr.total-row{background:var(--surface-alt);font-weight:700;}
+  tbody tr.total-row td{border-top:2px solid var(--border);border-bottom:none;}
+  td.desc{color:var(--text-muted);max-width:260px;}
+  .pill{display:inline-block;padding:1px 8px;border-radius:99px;font-size:11px;font-weight:600;background:var(--surface-alt);border:1px solid var(--border);color:var(--text-muted);white-space:nowrap;}
+  .pill.paid{background:var(--accent-soft);border-color:color-mix(in srgb, var(--accent) 40%, var(--border));color:var(--accent-strong);}
+  .pill.warn{background:var(--warn-soft);border-color:color-mix(in srgb, var(--warn) 40%, var(--border));color:var(--warn);}
+  .empty-row td{padding:32px 12px;text-align:center;color:var(--text-muted);white-space:normal;}
+
+  footer.note{font-size:12px;color:var(--text-muted);padding-top:2px;}
+
+  /* control card overlapping the hero, half-and-half like the reference site's search bar */
+  .control-card{margin-top:-54px;position:relative;z-index:2;}
+
+  /* upload dropzone — the primary call to action in the hero */
+  .hero-upload{display:flex;flex-direction:column;align-items:center;gap:10px;margin-top:6px;width:100%;}
+  .upload-dropzone{
+    display:flex;flex-direction:column;align-items:center;gap:6px;width:100%;max-width:440px;
+    background:#ffffff;border:2px dashed rgba(31,79,196,.5);border-radius:16px;padding:26px 28px;
+    cursor:pointer;box-shadow:0 12px 32px rgba(8,24,60,.28);transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+  }
+  .upload-dropzone:hover{transform:translateY(-2px);box-shadow:0 16px 40px rgba(8,24,60,.34);border-color:var(--brand-blue-dark);}
+  .upload-dropzone .upload-icon{color:var(--brand-blue-dark);}
+  .upload-dropzone .upload-main{color:var(--brand-blue-dark);font-weight:800;font-size:18px;}
+  .upload-dropzone .upload-sub{color:#57657e;font-size:12.5px;text-align:center;max-width:36ch;width:100%;overflow-wrap:anywhere;word-break:break-word;box-sizing:border-box;}
+
+  /* section head above the results table, echoing the reference site's "curriculum" heading row */
+  .section-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:8px 20px;}
+  .section-head .eyebrow{color:var(--brand-blue);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;}
+  .section-head h2{margin:2px 0 0;font-family:"Fraunces",Georgia,serif;font-weight:600;font-size:21px;}
+  .section-head .section-hint{color:var(--text-muted);font-size:12.5px;}
+
+  .table-shell{position:relative;}
+  .table-shell::before{content:"";position:absolute;top:0;left:0;right:0;height:4px;background:var(--brand-gradient);z-index:1;}
+  .table-shell .table-scroll{margin-top:4px;}
+
+  .toast{
+    position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(8px);
+    background:var(--text);color:var(--bg);padding:9px 16px;border-radius:8px;font-size:13px;font-weight:600;
+    opacity:0;pointer-events:none;transition:opacity .18s, transform .18s;box-shadow:var(--shadow);z-index:20;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  @media (max-width:640px){
+    .wrap{padding:14px;}
+    .nav-inner{padding:12px 14px;justify-content:center;}
+    .nav-links{margin-right:0;justify-content:center;width:100%;order:3;gap:16px;}
+    .nav-actions{width:100%;justify-content:center;}
+    .hero-inner{padding:28px 14px 40px;}
+    .toolbar-actions{margin-left:0;width:100%;}
+    .field.daterange{flex-wrap:wrap;}
+    .report-picker .desc,.report-picker .badge{padding-top:0;}
+    .control-card{margin-top:-30px;}
+    .section-head{align-items:flex-start;}
+  }
+</style>
+
+<header class="site-nav">
+  <div class="nav-inner">
+    <a class="nav-logo" href="https://claude.ai/artifact/MnDL4cWYCx6ckcP83TXSbd">
+      <span class="logo-text">QUICKFILE</span>
+      <span class="logo-badge">Reporting</span>
+    </a>
+    <nav class="nav-links">
+      <a href="https://support.quickfile.co.uk/" target="_blank" rel="noopener">Support</a>
+      <a href="https://community.quickfile.co.uk" target="_blank" rel="noopener">Community</a>
+      <a href="https://www.youtube.com/@QuickFileHelpGuides" target="_blank" rel="noopener">
+        <svg width="20" height="14" viewBox="0 0 28 20" xmlns="http://www.w3.org/2000/svg"><path d="M27.4 3.1a3.5 3.5 0 0 0-2.46-2.48C22.76 0 14 0 14 0S5.24 0 3.06.62A3.5 3.5 0 0 0 .6 3.1 36.6 36.6 0 0 0 0 10a36.6 36.6 0 0 0 .6 6.9 3.5 3.5 0 0 0 2.46 2.48C5.24 20 14 20 14 20s8.76 0 10.94-.62a3.5 3.5 0 0 0 2.46-2.48A36.6 36.6 0 0 0 28 10a36.6 36.6 0 0 0-.6-6.9z" fill="#FF0000"/><path d="M11.2 14.3V5.7L18.5 10l-7.3 4.3z" fill="#fff"/></svg>
+        YouTube
+      </a>
+      <a href="guide.html">Guide</a>
+      <a href="faq,html">FAQ</a>
+    </nav>
+    <div class="nav-actions">
+      <a class="btn-nav outline" href="https://www.quickfile.co.uk/register" target="_blank" rel="noopener">Sign Up</a>
+      <a class="btn-nav" href="https://www.quickfile.co.uk/login/search" target="_blank" rel="noopener">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>
+        Log In
+      </a>
+    </div>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="hero-inner">
+    <div class="hero-badge">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.7-8 10-4.6-1.3-8-5-8-10V6l8-4z"/></svg>
+      QuickFile Backup Reporting Tool &nbsp;•&nbsp; Runs 100% In Your Browser
+    </div>
+    <h1>Extra Reports, Built From Your Own QuickFile Backup</h1>
+    <p class="hero-sub">Choose the zip file below and get line-item detail, monthly summaries, profit by project, year-on-year comparisons and bank reconciliation — all worked out from your own invoices and bank statements, right alongside your QuickFile account.</p>
+    <div class="hero-stats">
+      <span class="stat-pill">13 ready-made reports</span>
+      <span class="stat-pill">Nothing is ever uploaded</span>
+      <span class="stat-pill">Works with any backup zip</span>
+      <span class="stat-pill">Free to use</span>
+    </div>
+    <div class="hero-upload">
+      <label class="upload-dropzone" for="zipInput">
+        <span class="upload-icon">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 3v12"/><path d="M6.5 9.5L12 4l5.5 5.5"/><path d="M4 21h16"/></svg>
+        </span>
+        <span class="upload-main">Choose backup .zip</span>
+        <span class="upload-sub" id="fileName">No backup loaded — showing example data</span>
+      </label>
+      <input type="file" id="zipInput" accept=".zip">
+      <span class="hero-privacy">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.7-8 10-4.6-1.3-8-5-8-10V6l8-4z"/></svg>
+        The zip is read entirely in this browser tab and never sent anywhere
+      </span>
+    </div>
+  </div>
+</section>
+
+<div class="wrap">
+  <div class="control-card">
+  <div class="report-picker">
+    <div class="field">
+      <label for="reportSelect">Report</label>
+      <select id="reportSelect">
+        <optgroup label="Line-item detail">
+          <option value="sales">Sales invoice items</option>
+          <option value="purchases">Purchase invoice items</option>
+        </optgroup>
+        <optgroup label="Monthly summaries — sales">
+          <option value="sales_by_project">Sales by project</option>
+          <option value="qty_by_item">Quantity sold by item</option>
+          <option value="sales_by_item">Sales by item</option>
+          <option value="sales_by_nominal">Sales by nominal</option>
+          <option value="sales_by_client">Sales by client</option>
+        </optgroup>
+        <optgroup label="Monthly summaries — purchases">
+          <option value="purchases_by_supplier">Purchases by supplier</option>
+          <option value="purchases_by_nominal">Purchases by nominal</option>
+        </optgroup>
+        <optgroup label="Profit">
+          <option value="profit_by_project">Profit by project</option>
+        </optgroup>
+        <optgroup label="Year-on-year comparisons">
+          <option value="income_yoy_calendar">Income by year (calendar)</option>
+          <option value="income_yoy_customend">Income by year (custom year-end)</option>
+          <option value="expense_yoy_calendar">Expenditure by year (calendar)</option>
+          <option value="expense_yoy_customend">Expenditure by year (custom year-end)</option>
+        </optgroup>
+        <optgroup label="Bank">
+          <option value="bank_reconciliation">Bank account balances</option>
+          <option value="bank_daily">Daily bank balances</option>
+        </optgroup>
+      </select>
+    </div>
+    <div class="desc" id="reportDesc"></div>
+    <div class="badge" id="reportBadge"></div>
+  </div>
+
+  <div class="toolbar" id="detailToolbar">
+    <div class="field search">
+      <label for="fSearch">Search</label>
+      <input type="text" id="fSearch" placeholder="Item, description, nominal name, account ref, tag…">
+    </div>
+    <div class="field party">
+      <label id="fPartyLabel" for="fParty">Client</label>
+      <select id="fParty"><option value="">All</option></select>
+    </div>
+    <div class="field nominal">
+      <label for="fNominal">Nominal code</label>
+      <select id="fNominal"><option value="">All</option></select>
+    </div>
+    <div class="field status">
+      <label for="fStatus">Status</label>
+      <select id="fStatus"><option value="">All</option></select>
+    </div>
+    <div class="field daterange">
+      <div class="sub"><label for="fFrom">From</label><input type="date" id="fFrom"></div>
+      <div class="sub"><label for="fTo">To</label><input type="date" id="fTo"></div>
+    </div>
+    <div class="toolbar-actions">
+      <button class="btn ghost" id="resetDetailBtn" type="button">Reset filters</button>
+      <button class="btn ghost" id="downloadDetailBtn" type="button">Export CSV</button>
+      <button class="btn primary" id="copyDetailBtn" type="button">Copy CSV</button>
+    </div>
+  </div>
+
+  <div class="toolbar" id="pivotToolbar" hidden>
+    <div class="field">
+      <label for="fEndMonthNum">12 months ending</label>
+      <div class="monthyear">
+        <select id="fEndMonthNum"></select>
+        <select id="fEndYear"></select>
+      </div>
+    </div>
+    <div class="field search">
+      <label id="fPivotSearchLabel" for="fPivotSearch">Search</label>
+      <input type="text" id="fPivotSearch" placeholder="Filter by name…">
+    </div>
+    <div class="toolbar-actions">
+      <button class="btn ghost" id="resetPivotBtn" type="button">Reset filters</button>
+      <button class="btn ghost" id="downloadPivotBtn" type="button">Export CSV</button>
+      <button class="btn primary" id="copyPivotBtn" type="button">Copy CSV</button>
+    </div>
+  </div>
+
+  <div class="toolbar" id="yoyToolbar" hidden>
+    <div class="field">
+      <label for="yoyGroupBy">Group by</label>
+      <select id="yoyGroupBy"></select>
+    </div>
+    <div class="field" id="yoyEndYearWrap">
+      <label for="yoyEndYear">5 years ending</label>
+      <select id="yoyEndYear"></select>
+    </div>
+    <div class="field" id="yoyEndDateWrap" hidden>
+      <label for="yoyEndDate">5 years ending</label>
+      <input type="date" id="yoyEndDate">
+    </div>
+    <div class="field search">
+      <label for="yoySearch">Search</label>
+      <input type="text" id="yoySearch" placeholder="Filter by name…">
+    </div>
+    <div class="toolbar-actions">
+      <button class="btn ghost" id="resetYoyBtn" type="button">Reset filters</button>
+      <button class="btn ghost" id="downloadYoyBtn" type="button">Export CSV</button>
+      <button class="btn primary" id="copyYoyBtn" type="button">Copy CSV</button>
+    </div>
+  </div>
+
+  <div class="toolbar" id="bankToolbar" hidden>
+    <div class="field">
+      <label for="bankPeriod">Checkpoint period</label>
+      <select id="bankPeriod">
+        <option value="M">Monthly</option>
+        <option value="H">Half-monthly</option>
+        <option value="Y">Yearly</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="bankEndDate">Last 12 checkpoints ending</label>
+      <input type="date" id="bankEndDate">
+    </div>
+    <div class="field search">
+      <label for="bankSearch">Search</label>
+      <input type="text" id="bankSearch" placeholder="Filter by account…">
+    </div>
+    <div class="toolbar-actions">
+      <button class="btn ghost" id="resetBankBtn" type="button">Reset filters</button>
+      <button class="btn ghost" id="downloadBankBtn" type="button">Export CSV</button>
+      <button class="btn primary" id="copyBankBtn" type="button">Copy CSV</button>
+    </div>
+  </div>
+
+  <div class="toolbar" id="bankDailyToolbar" hidden>
+    <div class="field">
+      <label for="bankDailyDate">Any date in the month</label>
+      <input type="date" id="bankDailyDate">
+    </div>
+    <div class="field search">
+      <label for="bankDailySearch">Search</label>
+      <input type="text" id="bankDailySearch" placeholder="Filter by account…">
+    </div>
+    <div class="toolbar-actions">
+      <button class="btn ghost" id="resetBankDailyBtn" type="button">Reset filters</button>
+      <button class="btn ghost" id="downloadBankDailyBtn" type="button">Export CSV</button>
+      <button class="btn primary" id="copyBankDailyBtn" type="button">Copy CSV</button>
+    </div>
+  </div>
+  </div>
+
+  <div class="banner" id="exampleBanner">
+    <strong>Example data.</strong>&nbsp;Choose a QuickFile backup zip above to replace this with your own invoices.
+  </div>
+  <div class="error" id="errorBox" hidden></div>
+
+  <div class="section-head">
+    <div>
+      <div class="eyebrow">Ledger Line Reports</div>
+      <h2 id="sectionHeading">Report results</h2>
+    </div>
+    <div class="section-hint">Click any column heading to sort — use Export CSV or Copy CSV above</div>
+  </div>
+
+  <div class="summary-strip">
+    <div class="stat"><span class="k" id="stat1k">Rows shown</span><span class="v tabular" id="stat1v">0</span></div>
+    <div class="stat"><span class="k" id="stat2k">Net £</span><span class="v tabular" id="stat2v">0.00</span></div>
+    <div class="stat"><span class="k" id="stat3k">VAT £</span><span class="v tabular" id="stat3v">0.00</span></div>
+    <div class="stat"><span class="k" id="stat4k">Gross £</span><span class="v tabular" id="stat4v">0.00</span></div>
+  </div>
+
+  <div class="table-shell">
+    <div class="table-scroll">
+      <table>
+        <thead><tr id="headRow"></tr></thead>
+        <tbody id="bodyRows"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <footer class="note">Export CSV saves the table currently on screen (filtered, sorted) as a .csv file to your downloads. Copy CSV puts the same data on your clipboard instead — paste straight into Excel or Google Sheets, no file saved.</footer>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+  var MONTHS_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+  var REPORTS = {
+    sales: {
+      kind:"detail",
+      label: "Sales invoice items",
+      desc: "Every sales invoice line, with the invoice's client name and account reference, tag and status pulled in, and the nominal code's account name.",
+      partyLabel: "Client",
+      requiredFiles: ["Sales_Invoice_Items.csv","Sales_Invoice.csv"],
+      searchFields: ["client","client_ref","item","description","nominal_name","tags","invoice_number"],
+      columns: [
+        {key:"invoice_number", label:"Invoice #"},
+        {key:"issue_date", label:"Date"},
+        {key:"client_ref", label:"Client account ref"},
+        {key:"client", label:"Client"},
+        {key:"item", label:"Item"},
+        {key:"description", label:"Description", desc:true},
+        {key:"nominal_code", label:"Nominal"},
+        {key:"nominal_name", label:"Nominal name"},
+        {key:"quantity", label:"Qty", num:true},
+        {key:"unit_cost", label:"Unit cost £", num:true, money:true},
+        {key:"net", label:"Net £", num:true, money:true},
+        {key:"vat", label:"VAT £", num:true, money:true},
+        {key:"tags", label:"Tag"},
+        {key:"status", label:"Status", status:true}
+      ],
+      build: function(t){
+        var items = t["Sales_Invoice_Items.csv"] || [];
+        var invByCode = indexBy(t["Sales_Invoice.csv"] || [], "ID");
+        var coa = coaMap(t["chart_of_accounts.csv"] || []);
+        var clientRefs = refByName(t["Client_Ledger.csv"], "ACCOUNT REF");
+        return items.map(function(it){
+          var inv = invByCode.get(clean(it.INVOICE_ID)) || {};
+          var nominal = padNominal(it.NOMINAL_CODE);
+          var d = parseQFDate(it.ISSUE_DATE);
+          var clientName = inv["CLIENT NAME"] || "";
+          return {
+            invoice_number: it.INVOICE_NUMBER || "",
+            issue_date: d.display, issue_date_iso: d.iso,
+            client_ref: clientRefs.get(clientName) || "",
+            client: clientName,
+            item: it.ITEM_NAME || it.ITEM_DESCRIPTION || "",
+            description: it.ITEM_DESCRIPTION || "",
+            nominal_code: nominal,
+            nominal_name: coa.get(nominal) || "",
+            quantity: toNum(it.QUANTITY),
+            unit_cost: toNum(it.UNIT_COST),
+            net: toNum(it.SUB_TOTAL_GBP),
+            vat: toNum(it.VAT_TOTAL_GBP),
+            tags: inv.TAGS || "",
+            status: inv.STATUS || ""
+          };
+        });
+      },
+      example: [
+        {invoice_number:"000512", issue_date:"14 Aug 2026", issue_date_iso:"2026-08-14", client_ref:"CUST0001", client:"Sample Trading Ltd", item:"Consulting", description:"Website consulting — August", nominal_code:"4000", nominal_name:"General Sales", quantity:1, unit_cost:850, net:850, vat:170, tags:"consulting", status:"PAIDFULL"},
+        {invoice_number:"000513", issue_date:"20 Aug 2026", issue_date_iso:"2026-08-20", client_ref:"CUST0002", client:"Northgate Properties", item:"Rent", description:"Rent for 12 Example Street", nominal_code:"4904", nominal_name:"Rent Income", quantity:1, unit_cost:600, net:600, vat:0, tags:"12-example-street", status:"PAIDFULL"},
+        {invoice_number:"000514", issue_date:"02 Sep 2026", issue_date_iso:"2026-09-02", client_ref:"CUST0001", client:"Sample Trading Ltd", item:"Management fee", description:"Monthly management fee", nominal_code:"4905", nominal_name:"Distribution and Carriage", quantity:1, unit_cost:-75, net:-75, vat:0, tags:"12-example-street", status:"PAIDFULL"}
+      ]
+    },
+    purchases: {
+      kind:"detail",
+      label: "Purchase invoice items",
+      desc: "Every purchase invoice line, with the supplier name and account reference, tag and status pulled in, and the nominal code's account name.",
+      partyLabel: "Supplier",
+      requiredFiles: ["Purchase_Invoice_Items.csv","Purchase_Invoice.csv"],
+      searchFields: ["client","client_ref","item","description","nominal_name","tags","invoice_number"],
+      columns: [
+        {key:"invoice_number", label:"Purchase #"},
+        {key:"issue_date", label:"Date"},
+        {key:"client_ref", label:"Supplier account ref"},
+        {key:"client", label:"Supplier"},
+        {key:"item", label:"Category"},
+        {key:"description", label:"Description", desc:true},
+        {key:"nominal_code", label:"Nominal"},
+        {key:"nominal_name", label:"Nominal name"},
+        {key:"net", label:"Net £", num:true, money:true},
+        {key:"vat", label:"VAT £", num:true, money:true},
+        {key:"tags", label:"Tag"},
+        {key:"status", label:"Status", status:true}
+      ],
+      build: function(t){
+        var items = t["Purchase_Invoice_Items.csv"] || [];
+        var invByCode = indexBy(t["Purchase_Invoice.csv"] || [], "ID");
+        var coa = coaMap(t["chart_of_accounts.csv"] || []);
+        var supplierRefs = refByName(t["Supplier_Ledger.csv"], "SUPPLIER REF.");
+        return items.map(function(it){
+          var inv = invByCode.get(clean(it.PURCHASE_ID)) || {};
+          var nominal = padNominal(it.NOMINAL_CODE);
+          var d = parseQFDate(it.RECEIPT_DATE);
+          var supplierName = inv["SUPPLIER NAME"] || "";
+          return {
+            invoice_number: it.RECEIPT_NUMBER || "",
+            issue_date: d.display, issue_date_iso: d.iso,
+            client_ref: supplierRefs.get(supplierName) || "",
+            client: supplierName,
+            item: it.PURCHASE_CATEGORY || "",
+            description: it.ITEM_DESCRIPTION || "",
+            nominal_code: nominal,
+            nominal_name: coa.get(nominal) || "",
+            net: toNum(it.SUB_TOTAL_GBP),
+            vat: toNum(it.VAT_TOTAL_GBP),
+            tags: inv.TAGS || "",
+            status: inv.STATUS || ""
+          };
+        });
+      },
+      example: [
+        {invoice_number:"QF01820", issue_date:"11 Aug 2026", issue_date_iso:"2026-08-11", client_ref:"SUP0001", client:"Northern Gas Ltd", item:"Utilities", description:"Gas supply — August", nominal_code:"7200", nominal_name:"Light and Heat", net:64.20, vat:3.21, tags:"", status:"PAIDFULL"},
+        {invoice_number:"QF01821", issue_date:"15 Aug 2026", issue_date_iso:"2026-08-15", client_ref:"SUP0002", client:"City Maintenance Co", item:"Repairs", description:"Boiler repair — 12 Example Street", nominal_code:"7801", nominal_name:"Repairs and Maintenance", net:180.00, vat:36.00, tags:"12-example-street", status:"SENT"}
+      ]
+    },
+    sales_by_project: {
+      kind:"pivot", sourceReport:"sales",
+      label:"Sales by project", groupLabel:"Project", groupField:"tags", prettifyGroup:true,
+      valueField:"net", valueFormat:"money",
+      desc:"Net sales total per project tag, by month, for the 12 months ending the month you pick.",
+      noneLabel:"No project tag"
+    },
+    qty_by_item: {
+      kind:"pivot", sourceReport:"sales",
+      label:"Quantity sold by item", groupLabel:"Item", groupField:"item", prettifyGroup:false,
+      valueField:"quantity", valueFormat:"qty",
+      desc:"Total quantity invoiced per item, by month, for the 12 months ending the month you pick.",
+      noneLabel:"(no item name)"
+    },
+    sales_by_item: {
+      kind:"pivot", sourceReport:"sales",
+      label:"Sales by item", groupLabel:"Item", groupField:"item", prettifyGroup:false,
+      valueField:"net", valueFormat:"money",
+      desc:"Net sales total per item, by month, for the 12 months ending the month you pick.",
+      noneLabel:"(no item name)"
+    },
+    sales_by_nominal: {
+      kind:"pivot", sourceReport:"sales",
+      label:"Sales by nominal", groupLabel:"Nominal", groupField:"nominal_code", prettifyGroup:false,
+      valueField:"net", valueFormat:"money",
+      desc:"Net sales total per nominal code, by month, for the 12 months ending the month you pick.",
+      noneLabel:"(no nominal code)",
+      labelFor: function(raw, r){ return r.nominal_name ? (raw + " — " + r.nominal_name) : raw; }
+    },
+    sales_by_client: {
+      kind:"pivot", sourceReport:"sales",
+      label:"Sales by client", groupLabel:"Client", groupField:"client", prettifyGroup:false,
+      valueField:"net", valueFormat:"money",
+      desc:"Net sales total per client, by month, for the 12 months ending the month you pick.",
+      noneLabel:"(no client name)"
+    },
+    purchases_by_supplier: {
+      kind:"pivot", sourceReport:"purchases",
+      label:"Purchases by supplier", groupLabel:"Supplier", groupField:"client", prettifyGroup:false,
+      valueField:"net", valueFormat:"money",
+      desc:"Net purchase total per supplier, by month, for the 12 months ending the month you pick.",
+      noneLabel:"(no supplier name)"
+    },
+    purchases_by_nominal: {
+      kind:"pivot", sourceReport:"purchases",
+      label:"Purchases by nominal", groupLabel:"Nominal", groupField:"nominal_code", prettifyGroup:false,
+      valueField:"net", valueFormat:"money",
+      desc:"Net purchase total per nominal code, by month, for the 12 months ending the month you pick.",
+      noneLabel:"(no nominal code)",
+      labelFor: function(raw, r){ return r.nominal_name ? (raw + " — " + r.nominal_name) : raw; }
+    },
+    profit_by_project: {
+      kind:"profit",
+      label:"Profit by project", groupLabel:"Project",
+      valueFormat:"money",
+      desc:"Net rent income minus net costs (repairs, utilities, etc.) tagged to the same property, by month, for the 12 months ending the month you pick. Profit = sales net minus purchases net sharing that project tag.",
+      noneLabel:"No project tag"
+    },
+    income_yoy_calendar: {
+      kind:"yoy", sourceReport:"sales", valueBasis:"gross", valueFormat:"money", dateMode:"calendarYear",
+      label:"Income by year (calendar)",
+      desc:"Gross income totals (net + VAT) for the last 5 calendar years, ending the year you pick.",
+      groupChoices: [
+        {value:"project", label:"Project", groupField:"tags", prettify:true, noneLabel:"No project tag"},
+        {value:"nominal", label:"Nominal", groupField:"nominal_code", labelFor: nominalLabelFor, noneLabel:"(no nominal code)"},
+        {value:"client", label:"Client", groupField:"client", noneLabel:"(no client name)"},
+        {value:"item", label:"Item", groupField:"item", noneLabel:"(no item name)"}
+      ]
+    },
+    income_yoy_customend: {
+      kind:"yoy", sourceReport:"sales", valueBasis:"net", valueFormat:"money", dateMode:"customEnd",
+      label:"Income by year (custom year-end)",
+      desc:"Net income totals for the last 5 twelve-month periods, each ending on the date you pick (e.g. a fiscal year end).",
+      groupChoices: [
+        {value:"project", label:"Project", groupField:"tags", prettify:true, noneLabel:"No project tag"},
+        {value:"nominal", label:"Nominal", groupField:"nominal_code", labelFor: nominalLabelFor, noneLabel:"(no nominal code)"},
+        {value:"client", label:"Client", groupField:"client", noneLabel:"(no client name)"},
+        {value:"item", label:"Item", groupField:"item", noneLabel:"(no item name)"}
+      ]
+    },
+    expense_yoy_calendar: {
+      kind:"yoy", sourceReport:"purchases", valueBasis:"gross", valueFormat:"money", dateMode:"calendarYear",
+      label:"Expenditure by year (calendar)",
+      desc:"Gross expenditure totals (net + VAT) for the last 5 calendar years, ending the year you pick.",
+      groupChoices: [
+        {value:"project", label:"Project", groupField:"tags", prettify:true, noneLabel:"No project tag"},
+        {value:"nominal", label:"Nominal", groupField:"nominal_code", labelFor: nominalLabelFor, noneLabel:"(no nominal code)"},
+        {value:"supplier", label:"Supplier", groupField:"client", noneLabel:"(no supplier name)"},
+        {value:"category", label:"Category", groupField:"item", noneLabel:"(no category)"}
+      ]
+    },
+    expense_yoy_customend: {
+      kind:"yoy", sourceReport:"purchases", valueBasis:"net", valueFormat:"money", dateMode:"customEnd",
+      label:"Expenditure by year (custom year-end)",
+      desc:"Net expenditure totals for the last 5 twelve-month periods, each ending on the date you pick.",
+      groupChoices: [
+        {value:"project", label:"Project", groupField:"tags", prettify:true, noneLabel:"No project tag"},
+        {value:"nominal", label:"Nominal", groupField:"nominal_code", labelFor: nominalLabelFor, noneLabel:"(no nominal code)"},
+        {value:"supplier", label:"Supplier", groupField:"client", noneLabel:"(no supplier name)"},
+        {value:"category", label:"Category", groupField:"item", noneLabel:"(no category)"}
+      ]
+    },
+    bank_reconciliation: {
+      kind:"bank",
+      label:"Bank account balances",
+      desc:"Opening balance (where known) and running closing balance for each bank account found in the backup's Bank_Accounts folder, at monthly, half-monthly (the 15th and last day of each month) or yearly checkpoints ending the date you pick — so you can check whether the balance at a point in time matches the real statement."
+    },
+    bank_daily: {
+      kind:"bankdaily",
+      label:"Daily bank balances",
+      desc:"Closing balance at the end of every day in one calendar month, for each bank account. Pick any date and the whole month it falls in is shown."
+    }
+  };
+  function nominalLabelFor(raw, r){ return r.nominal_name ? (raw + " — " + r.nominal_name) : raw; }
+  var REPORT_ORDER = ["sales","purchases","sales_by_project","qty_by_item","sales_by_item","sales_by_nominal","sales_by_client","purchases_by_supplier","purchases_by_nominal","profit_by_project","income_yoy_calendar","income_yoy_customend","expense_yoy_calendar","expense_yoy_customend","bank_reconciliation","bank_daily"];
+
+  var EXAMPLE_BANK_ACCOUNTS = [
+    {
+      id: "example1", label: "Current Account", nominalCode: "1200", openingBalance: 1000, openingDate: "2025-01-01",
+      txns: [
+        {date:"2025-09-14", net:850}, {date:"2025-10-20", net:-320}, {date:"2025-11-18", net:600},
+        {date:"2025-12-22", net:-150}, {date:"2026-01-15", net:900}, {date:"2026-03-02", net:-400},
+        {date:"2026-05-11", net:700}, {date:"2026-07-09", net:-260}, {date:"2026-08-20", net:850}
+      ]
+    },
+    {
+      id: "example2", label: "Bank account example2", nominalCode: "", openingBalance: null, openingDate: null,
+      txns: [
+        {date:"2025-10-05", net:300}, {date:"2026-01-05", net:300}, {date:"2026-04-05", net:-120}, {date:"2026-08-05", net:300}
+      ]
+    }
+  ];
+  var state = {
+    activeReport: "sales",
+    rows: { sales: REPORTS.sales.example.slice(), purchases: REPORTS.purchases.example.slice() },
+    isExample: true,
+    availableReports: { sales: true, purchases: true, bank: true },
+    bankAccounts: EXAMPLE_BANK_ACCOUNTS,
+    sort: { key: "issue_date_iso", dir: "desc" },
+    pivotSort: { key: "total", dir: "desc" },
+    lastPivot: null,
+    lastPivotGroupLabel: ""
+  };
+
+  // ---------- generic helpers ----------
+  function clean(v){ return (v == null ? "" : String(v)).trim(); }
+  function toNum(v){ var n = parseFloat(v); return isNaN(n) ? 0 : n; }
+  // QuickFile nominal codes are conventionally 4 digits (e.g. 0050, 7200), but the raw CSV
+  // export drops any leading zeros (so "0050" comes through as "50"). Every nominal code is
+  // routed through here as soon as it's read from a file, so it always displays/groups/sorts
+  // as a 4-digit code everywhere in the tool (detail tables, pivots, year-on-year, bank report).
+  function padNominal(v){
+    var c = clean(v);
+    return c && /^[0-9]+$/.test(c) ? c.padStart(4, "0") : c;
+  }
+  function esc(s){ return String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+  function money(n){ return (Number(n)||0).toLocaleString("en-GB", {minimumFractionDigits:2, maximumFractionDigits:2}); }
+  function qty(n){ return (Number(n)||0).toLocaleString("en-GB", {maximumFractionDigits:2}); }
+
+  function indexBy(rows, key){
+    var m = new Map();
+    rows.forEach(function(r){ var k = clean(r[key]); if(k && !m.has(k)) m.set(k, r); });
+    return m;
+  }
+  function coaMap(rows){
+    var m = new Map();
+    rows.forEach(function(r){ m.set(padNominal(r.NOMINALCODE), clean(r.ACCOUNTNAME)); });
+    return m;
+  }
+  // Client_Ledger.csv / Supplier_Ledger.csv: looked up by company name (Sales_Invoice.csv and
+  // Purchase_Invoice.csv don't carry a client/supplier ID, only the name) to pull in each
+  // contact's own account reference. Optional files — a missing one just leaves the ref blank.
+  function refByName(rows, refField){
+    var m = new Map();
+    (rows||[]).forEach(function(r){
+      var name = clean(r["COMPANY NAME"]);
+      if(name && !m.has(name)) m.set(name, clean(r[refField]));
+    });
+    return m;
+  }
+  function parseQFDate(raw){
+    if(!raw) return {display:"", iso:""};
+    var datePart = String(raw).trim().split(" ")[0];
+    var bits = datePart.split("/");
+    if(bits.length !== 3) return {display: datePart, iso:""};
+    var dd = bits[0].padStart(2,"0"), mm = bits[1].padStart(2,"0"), yyyy = bits[2];
+    var iso = yyyy + "-" + mm + "-" + dd;
+    var mi = parseInt(mm,10) - 1;
+    var display = (mi >= 0 && mi < 12) ? (dd + " " + MONTHS_SHORT[mi] + " " + yyyy) : datePart;
+    return {display: display, iso: iso};
+  }
+  function prettifyTag(raw){
+    return raw.split("-").map(function(w){ return w.length ? w.charAt(0).toUpperCase()+w.slice(1) : w; }).join(" ");
+  }
+  function uniqueSorted(arr){
+    var seen = new Set(), out = [];
+    arr.forEach(function(v){ v = clean(v); if(v && !seen.has(v)){ seen.add(v); out.push(v); } });
+    out.sort(function(a,b){ return a.localeCompare(b, undefined, {numeric:true, sensitivity:"base"}); });
+    return out;
+  }
+  function shiftMonth(y, m0, delta){
+    var total = y*12 + m0 + delta;
+    var yy = Math.floor(total/12), mm = ((total % 12) + 12) % 12;
+    return {y:yy, m:mm};
+  }
+  function last12Months(endStr){
+    var parts = endStr.split("-");
+    var y = parseInt(parts[0],10), m0 = parseInt(parts[1],10) - 1;
+    var arr = [];
+    for(var i=11;i>=0;i--){
+      var s = shiftMonth(y, m0, -i);
+      var key = s.y + "-" + String(s.m+1).padStart(2,"0");
+      arr.push({key:key, label: MONTHS_SHORT[s.m] + " " + String(s.y).slice(-2)});
+    }
+    return arr;
+  }
+  function currentMonthStr(){
+    var d = new Date();
+    return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0");
+  }
+  // "profit" is a virtual source spanning both sales and purchases (profit-by-project draws
+  // its date range from whichever of the two has more recent/older activity), so anywhere a
+  // sourceId is used to look up rows, resolve it through this helper instead of state.rows
+  // directly.
+  function rowsForSourceId(sourceId){
+    if(sourceId === "profit") return (state.rows.sales || []).concat(state.rows.purchases || []);
+    return state.rows[sourceId] || [];
+  }
+  function defaultEndMonth(sourceId){
+    var rows = rowsForSourceId(sourceId);
+    var months = rows.map(function(r){ return r.issue_date_iso; }).filter(Boolean).map(function(d){ return d.slice(0,7); });
+    if(!months.length) return currentMonthStr();
+    months.sort();
+    return months[months.length-1];
+  }
+  function getEndMonthValue(){
+    if(!fEndMonthNum.value || !fEndYear.value) return currentMonthStr();
+    return fEndYear.value + "-" + fEndMonthNum.value;
+  }
+  function setEndMonthValue(str){
+    var parts = String(str).split("-");
+    if(fEndMonthNum.querySelector('option[value="'+parts[1]+'"]')) fEndMonthNum.value = parts[1];
+    if(fEndYear.querySelector('option[value="'+parts[0]+'"]')) fEndYear.value = parts[0];
+    else { addYearOption(parts[0]); fEndYear.value = parts[0]; }
+  }
+  function addYearOption(year){
+    var o = document.createElement("option"); o.value = year; o.textContent = year;
+    var years = Array.prototype.map.call(fEndYear.options, function(op){ return op.value; });
+    years.push(year); years.sort();
+    fEndYear.innerHTML = "";
+    years.forEach(function(y){
+      var opt = document.createElement("option"); opt.value = y; opt.textContent = y;
+      fEndYear.appendChild(opt);
+    });
+  }
+  function yearRange(sourceId){
+    var rows = rowsForSourceId(sourceId);
+    var dataYears = rows
+      .map(function(r){ return parseInt((r.issue_date_iso||"").slice(0,4), 10); })
+      .filter(function(y){ return y && !isNaN(y); });
+    var thisYear = new Date().getFullYear();
+    // Always show at least a 10-year span ending this year, widened further if the
+    // loaded data reaches earlier or later than that — never just the data's own span,
+    // so a single-year dataset (e.g. the example rows, or a brand-new business) still
+    // gives you years to navigate.
+    var minYear = Math.min(thisYear - 10, dataYears.length ? Math.min.apply(null, dataYears) : thisYear);
+    var maxYear = Math.max(thisYear, dataYears.length ? Math.max.apply(null, dataYears) : thisYear);
+    return {min:minYear, max:maxYear};
+  }
+  function populateYearSelect(selectEl, sourceId){
+    var range = yearRange(sourceId);
+    var current = selectEl.value;
+    selectEl.innerHTML = "";
+    for(var y = range.min; y <= range.max; y++){
+      var o = document.createElement("option"); o.value = String(y); o.textContent = String(y);
+      selectEl.appendChild(o);
+    }
+    if(current && selectEl.querySelector('option[value="'+current+'"]')) selectEl.value = current;
+  }
+  function populateEndMonthPicker(sourceId){
+    if(!fEndMonthNum.options.length){
+      MONTHS_SHORT.forEach(function(name, i){
+        var o = document.createElement("option");
+        o.value = String(i+1).padStart(2,"0"); o.textContent = name;
+        fEndMonthNum.appendChild(o);
+      });
+    }
+    populateYearSelect(fEndYear, sourceId);
+  }
+
+  // ---------- date math shared by year-on-year and bank reports ----------
+  function pad2(n){ return String(n).padStart(2,"0"); }
+  function isoOf(y,m0,d){ return y + "-" + pad2(m0+1) + "-" + pad2(d); }
+  function shiftYearsIso(iso, deltaYears){
+    var p = iso.split("-").map(Number);
+    return isoOf(p[0]+deltaYears, p[1]-1, p[2]);
+  }
+  function addDaysIso(iso, deltaDays){
+    var p = iso.split("-").map(Number);
+    var d = new Date(Date.UTC(p[0], p[1]-1, p[2]));
+    d.setUTCDate(d.getUTCDate()+deltaDays);
+    return d.toISOString().slice(0,10);
+  }
+  function addMonthsClamped(iso, deltaMonths){
+    var p = iso.split("-").map(Number);
+    var total = p[0]*12 + (p[1]-1) + deltaMonths;
+    var y = Math.floor(total/12), m0 = ((total % 12) + 12) % 12;
+    var daysInMonth = new Date(Date.UTC(y, m0+1, 0)).getUTCDate();
+    return isoOf(y, m0, Math.min(p[2], daysInMonth));
+  }
+  function formatDMonYY(iso){
+    var p = iso.split("-").map(Number);
+    return p[2] + " " + MONTHS_SHORT[p[1]-1] + " " + String(p[0]).slice(-2);
+  }
+  function todayIso(){
+    var d = new Date();
+    return isoOf(d.getFullYear(), d.getMonth(), d.getDate());
+  }
+  function fiveYearBuckets(cfg){
+    var buckets = [];
+    if(cfg.dateMode === "calendarYear"){
+      var endYear = parseInt(yoyEndYear.value, 10) || new Date().getFullYear();
+      for(var k=4;k>=0;k--){
+        var y = endYear - k;
+        buckets.push({key:String(y), label:String(y), start:y+"-01-01", end:y+"-12-31"});
+      }
+    } else {
+      var endIso = yoyEndDate.value || todayIso();
+      for(var j=4;j>=0;j--){
+        var end = shiftYearsIso(endIso, -j);
+        var start = addDaysIso(shiftYearsIso(end, -1), 1);
+        buckets.push({key:end, label: formatDMonYY(end), start:start, end:end});
+      }
+    }
+    return buckets;
+  }
+  function defaultEndYear(sourceId){
+    var rows = state.rows[sourceId] || [];
+    var years = rows.map(function(r){ return r.issue_date_iso; }).filter(Boolean).map(function(d){ return d.slice(0,4); });
+    if(!years.length) return String(new Date().getFullYear());
+    years.sort();
+    return years[years.length-1];
+  }
+  function defaultEndDateIso(sourceId){
+    var rows = state.rows[sourceId] || [];
+    var dates = rows.map(function(r){ return r.issue_date_iso; }).filter(Boolean);
+    if(!dates.length) return todayIso();
+    dates.sort();
+    return dates[dates.length-1];
+  }
+
+  // ---------- DOM refs ----------
+  var $ = function(id){ return document.getElementById(id); };
+  var zipInput = $("zipInput"), fileName = $("fileName"), exampleBanner = $("exampleBanner"), errorBox = $("errorBox");
+  var reportSelect = $("reportSelect"), reportDesc = $("reportDesc"), reportBadge = $("reportBadge"), sectionHeading = $("sectionHeading");
+  var detailToolbar = $("detailToolbar"), pivotToolbar = $("pivotToolbar"), yoyToolbar = $("yoyToolbar"), bankToolbar = $("bankToolbar"), bankDailyToolbar = $("bankDailyToolbar");
+  var fSearch = $("fSearch"), fParty = $("fParty"), fPartyLabel = $("fPartyLabel"), fNominal = $("fNominal"), fStatus = $("fStatus"), fFrom = $("fFrom"), fTo = $("fTo");
+  var resetDetailBtn = $("resetDetailBtn"), copyDetailBtn = $("copyDetailBtn"), downloadDetailBtn = $("downloadDetailBtn");
+  var fEndMonthNum = $("fEndMonthNum"), fEndYear = $("fEndYear"), fPivotSearch = $("fPivotSearch"), fPivotSearchLabel = $("fPivotSearchLabel");
+  var resetPivotBtn = $("resetPivotBtn"), copyPivotBtn = $("copyPivotBtn"), downloadPivotBtn = $("downloadPivotBtn");
+  var yoyGroupBy = $("yoyGroupBy"), yoyEndYearWrap = $("yoyEndYearWrap"), yoyEndYear = $("yoyEndYear"), yoyEndDateWrap = $("yoyEndDateWrap"), yoyEndDate = $("yoyEndDate"), yoySearch = $("yoySearch");
+  var resetYoyBtn = $("resetYoyBtn"), copyYoyBtn = $("copyYoyBtn"), downloadYoyBtn = $("downloadYoyBtn");
+  var bankPeriod = $("bankPeriod"), bankEndDate = $("bankEndDate"), bankSearch = $("bankSearch");
+  var resetBankBtn = $("resetBankBtn"), copyBankBtn = $("copyBankBtn"), downloadBankBtn = $("downloadBankBtn");
+  var bankDailyDate = $("bankDailyDate"), bankDailySearch = $("bankDailySearch");
+  var resetBankDailyBtn = $("resetBankDailyBtn"), copyBankDailyBtn = $("copyBankDailyBtn"), downloadBankDailyBtn = $("downloadBankDailyBtn");
+  var headRow = $("headRow"), bodyRows = $("bodyRows");
+  var stat1k=$("stat1k"), stat1v=$("stat1v"), stat2k=$("stat2k"), stat2v=$("stat2v"), stat3k=$("stat3k"), stat3v=$("stat3v"), stat4k=$("stat4k"), stat4v=$("stat4v");
+  var toast = $("toast");
+
+  function showToast(msg){
+    toast.textContent = msg;
+    toast.classList.add("show");
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(function(){ toast.classList.remove("show"); }, 2200);
+  }
+  function showError(msg){
+    if(!msg){ errorBox.hidden = true; errorBox.textContent = ""; return; }
+    errorBox.hidden = false; errorBox.textContent = msg;
+  }
+  function setStat(i, label, value){
+    ({1:[stat1k,stat1v],2:[stat2k,stat2v],3:[stat3k,stat3v],4:[stat4k,stat4v]})[i][0].textContent = label;
+    ({1:[stat1k,stat1v],2:[stat2k,stat2v],3:[stat3k,stat3v],4:[stat4k,stat4v]})[i][1].textContent = value;
+  }
+
+  // ---------- detail: filters ----------
+  function fillSelect(sel, values, placeholder, mapLabel){
+    var current = sel.value;
+    sel.innerHTML = "";
+    var optAll = document.createElement("option");
+    optAll.value = ""; optAll.textContent = placeholder;
+    sel.appendChild(optAll);
+    values.forEach(function(v){
+      var o = document.createElement("option");
+      o.value = v; o.textContent = mapLabel ? mapLabel(v) : v;
+      sel.appendChild(o);
+    });
+    if(values.indexOf(current) !== -1) sel.value = current;
+  }
+  function populateDetailFilters(reportId){
+    var report = REPORTS[reportId];
+    var rows = state.rows[reportId] || [];
+    fPartyLabel.textContent = report.partyLabel;
+    fillSelect(fParty, uniqueSorted(rows.map(function(r){ return r.client; })), "All");
+    var nominalCodes = uniqueSorted(rows.map(function(r){ return r.nominal_code; }));
+    var nameByCode = {};
+    rows.forEach(function(r){ if(r.nominal_code) nameByCode[r.nominal_code] = r.nominal_name; });
+    fillSelect(fNominal, nominalCodes, "All", function(code){ return nameByCode[code] ? (code + " — " + nameByCode[code]) : code; });
+    fillSelect(fStatus, uniqueSorted(rows.map(function(r){ return r.status; })), "All");
+  }
+  function getFilteredDetail(reportId){
+    var report = REPORTS[reportId];
+    var rows = state.rows[reportId] || [];
+    var q = fSearch.value.trim().toLowerCase();
+    var party = fParty.value, nominal = fNominal.value, status = fStatus.value;
+    var from = fFrom.value, to = fTo.value;
+    var out = rows.filter(function(r){
+      if(party && r.client !== party) return false;
+      if(nominal && r.nominal_code !== nominal) return false;
+      if(status && r.status !== status) return false;
+      if(from && r.issue_date_iso && r.issue_date_iso < from) return false;
+      if(to && r.issue_date_iso && r.issue_date_iso > to) return false;
+      if(q){
+        var hit = report.searchFields.some(function(f){ return String(r[f] || "").toLowerCase().indexOf(q) !== -1; });
+        if(!hit) return false;
+      }
+      return true;
+    });
+    var key = state.sort.key, dir = state.sort.dir === "asc" ? 1 : -1;
+    out.sort(function(a,b){
+      var av = a[key], bv = b[key];
+      if(typeof av === "number" || typeof bv === "number"){ return ((Number(av)||0) - (Number(bv)||0)) * dir; }
+      av = String(av || ""); bv = String(bv || "");
+      return av.localeCompare(bv, undefined, {numeric:true, sensitivity:"base"}) * dir;
+    });
+    return out;
+  }
+  function renderDetailHead(reportId){
+    var report = REPORTS[reportId];
+    headRow.innerHTML = "";
+    report.columns.forEach(function(col){
+      var th = document.createElement("th");
+      if(col.num) th.classList.add("num");
+      th.innerHTML = esc(col.label) + '<span class="arrow">▲</span>';
+      if(state.sort.key === col.key){
+        th.dataset.sorted = state.sort.dir;
+        th.querySelector(".arrow").textContent = state.sort.dir === "asc" ? "▲" : "▼";
+      }
+      th.addEventListener("click", function(){
+        if(state.sort.key === col.key){ state.sort.dir = state.sort.dir === "asc" ? "desc" : "asc"; }
+        else { state.sort.key = col.key; state.sort.dir = col.num ? "desc" : "asc"; }
+        render();
+      });
+      headRow.appendChild(th);
+    });
+  }
+  function statusPillClass(status){
+    var s = (status || "").toUpperCase();
+    if(s.indexOf("PAID") !== -1) return "pill paid";
+    if(s === "SENT" || s === "DRAFT") return "pill warn";
+    return "pill";
+  }
+  function renderDetailBody(reportId, rows){
+    var report = REPORTS[reportId];
+    bodyRows.innerHTML = "";
+    if(rows.length === 0){
+      var tr = document.createElement("tr"); tr.className = "empty-row";
+      var td = document.createElement("td"); td.colSpan = report.columns.length; td.textContent = "No rows match these filters.";
+      tr.appendChild(td); bodyRows.appendChild(tr); return;
+    }
+    var frag = document.createDocumentFragment();
+    rows.forEach(function(r){
+      var tr = document.createElement("tr");
+      report.columns.forEach(function(col){
+        var td = document.createElement("td");
+        var val = r[col.key];
+        if(col.money){ td.className = "num tabular"; td.textContent = money(val); }
+        else if(col.num){ td.className = "num tabular"; td.textContent = String(val); }
+        else if(col.status){
+          var span = document.createElement("span");
+          span.className = statusPillClass(val); span.textContent = val || "—";
+          td.appendChild(span);
+        } else if(col.desc){ td.className = "desc"; td.textContent = val || ""; }
+        else { td.textContent = val || ""; }
+        tr.appendChild(td);
+      });
+      frag.appendChild(tr);
+    });
+    bodyRows.appendChild(frag);
+  }
+  function renderDetail(reportId){
+    renderDetailHead(reportId);
+    var rows = getFilteredDetail(reportId);
+    renderDetailBody(reportId, rows);
+    var net = 0, vat = 0;
+    rows.forEach(function(r){ net += Number(r.net)||0; vat += Number(r.vat)||0; });
+    setStat(1, "Rows shown", rows.length.toLocaleString("en-GB"));
+    setStat(2, "Net £", money(net));
+    setStat(3, "VAT £", money(vat));
+    setStat(4, "Gross £", money(net+vat));
+    state.lastDetail = rows;
+  }
+
+  // ---------- pivot ----------
+  function buildPivot(reportId){
+    var cfg = REPORTS[reportId];
+    var source = state.rows[cfg.sourceReport] || [];
+    var months = last12Months(getEndMonthValue());
+    var monthSet = {}; months.forEach(function(m){ monthSet[m.key] = true; });
+    var groups = new Map();
+    // First pass: register every group that appears anywhere in the source data at all
+    // (any date), so a project/item with no activity in this particular window still
+    // gets a zero-filled row instead of disappearing.
+    source.forEach(function(r){
+      var raw = clean(r[cfg.groupField]);
+      var gkey = raw || "\u0000none";
+      if(!groups.has(gkey)){
+        var label = raw ? (cfg.labelFor ? cfg.labelFor(raw, r) : (cfg.prettifyGroup ? prettifyTag(raw) : raw)) : cfg.noneLabel;
+        var g = {key:gkey, label:label, byMonth:{}, total:0};
+        months.forEach(function(m){ g.byMonth[m.key] = 0; });
+        groups.set(gkey, g);
+      }
+    });
+    // Second pass: accumulate values for rows that actually fall inside the window
+    source.forEach(function(r){
+      var mk = (r.issue_date_iso || "").slice(0,7);
+      if(!monthSet[mk]) return;
+      var raw = clean(r[cfg.groupField]);
+      var gkey = raw || "\u0000none";
+      var g = groups.get(gkey);
+      var val = Number(r[cfg.valueField]) || 0;
+      g.byMonth[mk] += val; g.total += val;
+    });
+    var q = fPivotSearch.value.trim().toLowerCase();
+    var rows = Array.from(groups.values());
+    if(q) rows = rows.filter(function(g){ return g.label.toLowerCase().indexOf(q) !== -1; });
+    var key = state.pivotSort.key, dir = state.pivotSort.dir === "asc" ? 1 : -1;
+    rows.sort(function(a,b){
+      if(key === "label") return a.label.localeCompare(b.label, undefined, {numeric:true, sensitivity:"base"}) * dir;
+      var av = key === "total" ? a.total : (a.byMonth[key]||0);
+      var bv = key === "total" ? b.total : (b.byMonth[key]||0);
+      return (av-bv) * dir;
+    });
+    return {months: months, rows: rows};
+  }
+  // Profit by project combines two source reports (sales and purchases) grouped by the
+  // shared "tags" field, unlike every other pivot which reads one sourceReport. Otherwise it
+  // follows the same "register every group first, then accumulate in-window" pattern, and
+  // reuses the same pivotToolbar/renderPivotHead/renderPivotBody/pivotToCsv machinery — a
+  // group's byMonth value here is income minus cost, not a plain sum.
+  function buildProfitPivot(reportId){
+    var cfg = REPORTS[reportId];
+    var salesRows = state.rows.sales || [];
+    var purchaseRows = state.rows.purchases || [];
+    var months = last12Months(getEndMonthValue());
+    var monthSet = {}; months.forEach(function(m){ monthSet[m.key] = true; });
+    var groups = new Map();
+    function ensureGroup(raw){
+      var gkey = raw || "\u0000none";
+      if(!groups.has(gkey)){
+        var label = raw ? prettifyTag(raw) : cfg.noneLabel;
+        var g = {key:gkey, label:label, byMonth:{}, incomeByMonth:{}, costByMonth:{}, total:0};
+        months.forEach(function(m){ g.byMonth[m.key] = 0; g.incomeByMonth[m.key] = 0; g.costByMonth[m.key] = 0; });
+        groups.set(gkey, g);
+      }
+      return groups.get(gkey);
+    }
+    // First pass: register every project tag that appears anywhere in EITHER sales or
+    // purchases (any date), so a property with costs but no income in this window — or
+    // vice versa — still gets a zero-filled row instead of disappearing.
+    salesRows.forEach(function(r){ ensureGroup(clean(r.tags)); });
+    purchaseRows.forEach(function(r){ ensureGroup(clean(r.tags)); });
+    // Second pass: accumulate income (sales net) and cost (purchases net) separately for
+    // rows that fall inside the window, then take the difference per month.
+    salesRows.forEach(function(r){
+      var mk = (r.issue_date_iso || "").slice(0,7);
+      if(!monthSet[mk]) return;
+      var g = ensureGroup(clean(r.tags));
+      g.incomeByMonth[mk] += Number(r.net) || 0;
+    });
+    purchaseRows.forEach(function(r){
+      var mk = (r.issue_date_iso || "").slice(0,7);
+      if(!monthSet[mk]) return;
+      var g = ensureGroup(clean(r.tags));
+      g.costByMonth[mk] += Number(r.net) || 0;
+    });
+    groups.forEach(function(g){
+      months.forEach(function(m){
+        var profit = (g.incomeByMonth[m.key] || 0) - (g.costByMonth[m.key] || 0);
+        g.byMonth[m.key] = profit;
+        g.total += profit;
+      });
+    });
+    var q = fPivotSearch.value.trim().toLowerCase();
+    var rows = Array.from(groups.values());
+    if(q) rows = rows.filter(function(g){ return g.label.toLowerCase().indexOf(q) !== -1; });
+    var key = state.pivotSort.key, dir = state.pivotSort.dir === "asc" ? 1 : -1;
+    rows.sort(function(a,b){
+      if(key === "label") return a.label.localeCompare(b.label, undefined, {numeric:true, sensitivity:"base"}) * dir;
+      var av = key === "total" ? a.total : (a.byMonth[key]||0);
+      var bv = key === "total" ? b.total : (b.byMonth[key]||0);
+      return (av-bv) * dir;
+    });
+    return {months: months, rows: rows};
+  }
+  function renderPivotHead(groupLabel, periods){
+    headRow.innerHTML = "";
+    function mkTh(keyId, label, numeric){
+      var th = document.createElement("th");
+      if(numeric) th.classList.add("num");
+      th.innerHTML = esc(label) + '<span class="arrow">▲</span>';
+      if(state.pivotSort.key === keyId){
+        th.dataset.sorted = state.pivotSort.dir;
+        th.querySelector(".arrow").textContent = state.pivotSort.dir === "asc" ? "▲" : "▼";
+      }
+      th.addEventListener("click", function(){
+        if(state.pivotSort.key === keyId){ state.pivotSort.dir = state.pivotSort.dir === "asc" ? "desc" : "asc"; }
+        else { state.pivotSort.key = keyId; state.pivotSort.dir = keyId === "label" ? "asc" : "desc"; }
+        render();
+      });
+      return th;
+    }
+    headRow.appendChild(mkTh("label", groupLabel, false));
+    periods.forEach(function(m){ headRow.appendChild(mkTh(m.key, m.label, true)); });
+    headRow.appendChild(mkTh("total", "Total", true));
+  }
+  function renderPivotBody(cfg, periods, rows, emptyMsg){
+    bodyRows.innerHTML = "";
+    var fmt = cfg.valueFormat === "money" ? money : qty;
+    if(rows.length === 0){
+      var tr = document.createElement("tr"); tr.className = "empty-row";
+      var td = document.createElement("td"); td.colSpan = periods.length + 2; td.textContent = emptyMsg || "No rows match these filters.";
+      tr.appendChild(td); bodyRows.appendChild(tr); return;
+    }
+    var frag = document.createDocumentFragment();
+    var colTotals = {}; periods.forEach(function(m){ colTotals[m.key] = 0; });
+    var grandTotal = 0;
+    rows.forEach(function(g){
+      var tr = document.createElement("tr");
+      var tdLabel = document.createElement("td"); tdLabel.textContent = g.label; tr.appendChild(tdLabel);
+      periods.forEach(function(m){
+        var td = document.createElement("td"); td.className = "num tabular";
+        var v = g.byMonth[m.key] || 0;
+        td.textContent = v ? fmt(v) : "–";
+        colTotals[m.key] += v;
+        tr.appendChild(td);
+      });
+      var tdTotal = document.createElement("td"); tdTotal.className = "num tabular"; tdTotal.textContent = fmt(g.total);
+      grandTotal += g.total;
+      tr.appendChild(tdTotal);
+      frag.appendChild(tr);
+    });
+    var totalTr = document.createElement("tr"); totalTr.className = "total-row";
+    var totalLabelTd = document.createElement("td"); totalLabelTd.textContent = "Total"; totalTr.appendChild(totalLabelTd);
+    periods.forEach(function(m){
+      var td = document.createElement("td"); td.className = "num tabular"; td.textContent = fmt(colTotals[m.key]);
+      totalTr.appendChild(td);
+    });
+    var grandTd = document.createElement("td"); grandTd.className = "num tabular"; grandTd.textContent = fmt(grandTotal);
+    totalTr.appendChild(grandTd);
+    frag.appendChild(totalTr);
+    bodyRows.appendChild(frag);
+  }
+
+  // ---------- year-on-year ----------
+  function activeGroupChoice(cfg){
+    return cfg.groupChoices.filter(function(g){ return g.value === yoyGroupBy.value; })[0] || cfg.groupChoices[0];
+  }
+  function buildYoY(reportId){
+    var cfg = REPORTS[reportId];
+    var choice = activeGroupChoice(cfg);
+    var source = state.rows[cfg.sourceReport] || [];
+    var buckets = fiveYearBuckets(cfg);
+    var groups = new Map();
+    source.forEach(function(r){
+      var raw = clean(r[choice.groupField]);
+      var gkey = raw || "\u0000none";
+      if(!groups.has(gkey)){
+        var label = raw ? (choice.labelFor ? choice.labelFor(raw, r) : (choice.prettify ? prettifyTag(raw) : raw)) : choice.noneLabel;
+        var g = {key:gkey, label:label, byMonth:{}, total:0};
+        buckets.forEach(function(b){ g.byMonth[b.key] = 0; });
+        groups.set(gkey, g);
+      }
+    });
+    source.forEach(function(r){
+      var iso = r.issue_date_iso; if(!iso) return;
+      var raw = clean(r[choice.groupField]);
+      var gkey = raw || "\u0000none";
+      var g = groups.get(gkey);
+      var val = cfg.valueBasis === "gross" ? (Number(r.net)||0) + (Number(r.vat)||0) : (Number(r.net)||0);
+      buckets.forEach(function(b){
+        if(iso >= b.start && iso <= b.end){ g.byMonth[b.key] += val; g.total += val; }
+      });
+    });
+    var q = yoySearch.value.trim().toLowerCase();
+    var rows = Array.from(groups.values());
+    if(q) rows = rows.filter(function(g){ return g.label.toLowerCase().indexOf(q) !== -1; });
+    var key = state.pivotSort.key, dir = state.pivotSort.dir === "asc" ? 1 : -1;
+    rows.sort(function(a,b){
+      if(key === "label") return a.label.localeCompare(b.label, undefined, {numeric:true, sensitivity:"base"}) * dir;
+      var av = key === "total" ? a.total : (a.byMonth[key]||0);
+      var bv = key === "total" ? b.total : (b.byMonth[key]||0);
+      return (av-bv) * dir;
+    });
+    return {months: buckets, rows: rows, groupLabel: choice.label};
+  }
+  function populateYoyGroupBy(cfg){
+    var current = yoyGroupBy.value;
+    yoyGroupBy.innerHTML = "";
+    cfg.groupChoices.forEach(function(c){
+      var o = document.createElement("option"); o.value = c.value; o.textContent = c.label;
+      yoyGroupBy.appendChild(o);
+    });
+    if(cfg.groupChoices.some(function(c){ return c.value === current; })) yoyGroupBy.value = current;
+  }
+
+  // ---------- shared pivot/yoy rendering ----------
+  function renderPivotLike(reportId){
+    var cfg = REPORTS[reportId];
+    var built = cfg.kind === "yoy" ? buildYoY(reportId) : (cfg.kind === "profit" ? buildProfitPivot(reportId) : buildPivot(reportId));
+    var groupLabel = built.groupLabel || cfg.groupLabel;
+    renderPivotHead(groupLabel, built.months);
+    var emptyMsg = cfg.kind === "yoy" ? "No rows match these filters in this 5-year comparison." : "No rows match these filters in this 12-month window.";
+    renderPivotBody(cfg, built.months, built.rows, emptyMsg);
+    var grandTotal = built.rows.reduce(function(s,g){ return s + g.total; }, 0);
+    var rangeLabel = built.months.length ? (built.months[0].label + " – " + built.months[built.months.length-1].label) : "–";
+    var fmt = cfg.valueFormat === "money" ? money : qty;
+    setStat(1, groupLabel + "s shown", built.rows.length.toLocaleString("en-GB"));
+    setStat(2, cfg.kind === "yoy" ? "Years" : "Window", rangeLabel);
+    setStat(3, cfg.valueFormat === "money" ? "Total £" : "Total", fmt(grandTotal));
+    setStat(4, cfg.kind === "yoy" ? "Avg / year" : "Avg / month", fmt(grandTotal / built.months.length));
+    state.lastPivot = built;
+    state.lastPivotGroupLabel = groupLabel;
+  }
+
+  // ---------- report switching ----------
+  function reportAvailable(id){
+    var cfg = REPORTS[id];
+    if(cfg.kind === "bank" || cfg.kind === "bankdaily") return state.availableReports.bank !== false;
+    if(cfg.kind === "profit") return state.availableReports.sales !== false && state.availableReports.purchases !== false;
+    var src = (cfg.kind === "pivot" || cfg.kind === "yoy") ? cfg.sourceReport : id;
+    return state.availableReports[src] !== false;
+  }
+  function refreshReportOptions(){
+    Array.prototype.forEach.call(reportSelect.options, function(opt){
+      if(!opt.value) return;
+      opt.disabled = !reportAvailable(opt.value);
+    });
+  }
+  function setActiveReport(id){
+    state.activeReport = id;
+    var cfg = REPORTS[id];
+    reportSelect.value = id;
+    reportDesc.textContent = cfg.desc || "";
+    sectionHeading.textContent = cfg.label || "Report results";
+    var srcId = cfg.kind === "pivot" || cfg.kind === "yoy" ? cfg.sourceReport : (cfg.kind === "profit" ? "profit" : id);
+    var isBankKind = cfg.kind === "bank" || cfg.kind === "bankdaily";
+    var n = isBankKind ? state.bankAccounts.length : rowsForSourceId(srcId).length;
+    var noun = isBankKind ? " accounts" : (cfg.kind === "detail" ? " rows" : " source lines");
+    reportBadge.textContent = (state.isExample ? "example · " : "") + n.toLocaleString("en-GB") + noun;
+    detailToolbar.hidden = cfg.kind !== "detail";
+    pivotToolbar.hidden = !(cfg.kind === "pivot" || cfg.kind === "profit");
+    yoyToolbar.hidden = cfg.kind !== "yoy";
+    bankToolbar.hidden = cfg.kind !== "bank";
+    bankDailyToolbar.hidden = cfg.kind !== "bankdaily";
+    if(cfg.kind === "detail"){
+      populateDetailFilters(id);
+      fSearch.value = ""; fFrom.value = ""; fTo.value = "";
+      state.sort = { key: "issue_date_iso", dir: "desc" };
+    } else if(cfg.kind === "pivot" || cfg.kind === "profit"){
+      var pickerSrc = cfg.kind === "profit" ? "profit" : cfg.sourceReport;
+      fPivotSearchLabel.textContent = "Search";
+      fPivotSearch.placeholder = "Filter by " + cfg.groupLabel.toLowerCase() + " name…";
+      fPivotSearch.value = "";
+      populateEndMonthPicker(pickerSrc);
+      setEndMonthValue(defaultEndMonth(pickerSrc));
+      state.pivotSort = { key: "total", dir: "desc" };
+    } else if(cfg.kind === "yoy"){
+      populateYoyGroupBy(cfg);
+      yoySearch.value = "";
+      if(cfg.dateMode === "calendarYear"){
+        yoyEndYearWrap.hidden = false; yoyEndDateWrap.hidden = true;
+        populateYearSelect(yoyEndYear, cfg.sourceReport);
+        yoyEndYear.value = defaultEndYear(cfg.sourceReport);
+      } else {
+        yoyEndYearWrap.hidden = true; yoyEndDateWrap.hidden = false;
+        yoyEndDate.value = defaultEndDateIso(cfg.sourceReport);
+      }
+      state.pivotSort = { key: "total", dir: "desc" };
+    } else if(cfg.kind === "bank"){
+      bankSearch.value = "";
+      bankPeriod.value = "M";
+      bankEndDate.value = defaultBankEndDate();
+      state.pivotSort = { key: "total", dir: "desc" };
+    } else if(cfg.kind === "bankdaily"){
+      bankDailySearch.value = "";
+      bankDailyDate.value = defaultBankEndDate();
+      state.pivotSort = { key: "total", dir: "desc" };
+    }
+    render();
+  }
+  function render(){
+    var id = state.activeReport;
+    var cfg = REPORTS[id];
+    if(cfg.kind === "detail") renderDetail(id);
+    else if(cfg.kind === "bank") renderBank(id);
+    else if(cfg.kind === "bankdaily") renderBankDaily(id);
+    else renderPivotLike(id);
+  }
+
+  // ---------- CSV copy ----------
+  function csvField(v){
+    v = v == null ? "" : String(v);
+    if(/[",\n\r]/.test(v)) v = '"' + v.replace(/"/g,'""') + '"';
+    return v;
+  }
+  function detailToCsv(reportId, rows){
+    var report = REPORTS[reportId];
+    var lines = [report.columns.map(function(c){ return csvField(c.label); }).join(",")];
+    rows.forEach(function(r){
+      lines.push(report.columns.map(function(c){
+        var v = r[c.key];
+        if(c.money) v = (Number(v)||0).toFixed(2);
+        return csvField(v);
+      }).join(","));
+    });
+    return lines.join("\r\n");
+  }
+  function pivotToCsv(groupLabel, built){
+    var header = [groupLabel].concat(built.months.map(function(m){ return m.label; })).concat(["Total"]);
+    var lines = [header.map(csvField).join(",")];
+    var colTotals = {}; built.months.forEach(function(m){ colTotals[m.key] = 0; });
+    var grand = 0;
+    built.rows.forEach(function(g){
+      var row = [g.label].concat(built.months.map(function(m){ colTotals[m.key]+=g.byMonth[m.key]||0; return (g.byMonth[m.key]||0).toFixed(2); })).concat([g.total.toFixed(2)]);
+      grand += g.total;
+      lines.push(row.map(csvField).join(","));
+    });
+    var totalRow = ["Total"].concat(built.months.map(function(m){ return colTotals[m.key].toFixed(2); })).concat([grand.toFixed(2)]);
+    lines.push(totalRow.map(csvField).join(","));
+    return lines.join("\r\n");
+  }
+  function currentCsvAndCount(){
+    var id = state.activeReport, cfg = REPORTS[id];
+    var csv, count;
+    if(cfg.kind === "detail"){ csv = detailToCsv(id, state.lastDetail||[]); count = (state.lastDetail||[]).length; }
+    else if(cfg.kind === "bank" || cfg.kind === "bankdaily"){ csv = bankToCsv(state.lastBank||{periods:[],rows:[]}); count = (state.lastBank ? state.lastBank.rows.length : 0); }
+    else { csv = pivotToCsv(state.lastPivotGroupLabel || cfg.groupLabel, state.lastPivot||{months:[],rows:[]}); count = (state.lastPivot ? state.lastPivot.rows.length : 0); }
+    return { csv: csv, count: count, label: cfg.label || id };
+  }
+  function copyCurrent(){
+    var cur = currentCsvAndCount();
+    var done = function(ok){ showToast(ok ? ("Copied " + cur.count + " rows — paste into Excel") : "Couldn't copy — select the table and copy manually"); };
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(cur.csv).then(function(){ done(true); }, function(){ fallbackCopy(cur.csv, done); });
+    } else { fallbackCopy(cur.csv, done); }
+  }
+  function fallbackCopy(text, done){
+    try{
+      var ta = document.createElement("textarea");
+      ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      var ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      done(ok);
+    } catch(e){ done(false); }
+  }
+
+  // ---------- CSV file export (Downloads capability, with a best-effort fallback) ----------
+  // window.claude is only present when this page is running inside the claude.ai artifact
+  // viewer; resolve the "downloads" capability once, up front, rather than on every click.
+  var downloadsCapPromise = (window.claude && typeof window.claude.use === "function")
+    ? window.claude.use("downloads").catch(function(){ return null; })
+    : null;
+  function slugFilename(s){
+    var slug = String(s || "report").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+    return slug || "report";
+  }
+  function legacyBlobDownload(csv, filename){
+    try{
+      var blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url; a.download = filename; a.style.display = "none";
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+      return true;
+    } catch(e){ return false; }
+  }
+  function downloadCurrent(){
+    var cur = currentCsvAndCount();
+    var filename = "quickfile-" + slugFilename(cur.label) + "-" + todayIso() + ".csv";
+    var afterSave = function(saved){
+      showToast(saved ? ("Saved " + cur.count + " rows to " + filename) : "Couldn't export — try Copy CSV instead");
+    };
+    var withCapability = function(cap){
+      if(cap && typeof cap.save === "function"){
+        cap.save({ filename: filename, data: cur.csv }).then(function(){ afterSave(true); }, function(err){
+          if(err && err.code === "declined") return; // the visitor said no — nothing more to do
+          afterSave(legacyBlobDownload(cur.csv, filename));
+        });
+      } else {
+        afterSave(legacyBlobDownload(cur.csv, filename));
+      }
+    };
+    if(downloadsCapPromise){ downloadsCapPromise.then(withCapability); }
+    else { withCapability(null); }
+  }
+
+  // ---------- bank reconciliation ----------
+  function defaultBankEndDate(){
+    var all = [];
+    state.bankAccounts.forEach(function(a){ a.txns.forEach(function(t){ if(t.date) all.push(t.date); }); });
+    if(!all.length) return todayIso();
+    all.sort();
+    return all[all.length-1];
+  }
+  // Shared by the checkpoint report and the daily report: given a list of checkpoint dates,
+  // compute each account's balance as of each one (opening balance, when known, plus every
+  // transaction from that account's own file dated on or before the checkpoint).
+  function bankRowsForPeriods(periods, searchValue){
+    var q = (searchValue || "").trim().toLowerCase();
+    var rows = state.bankAccounts.map(function(acct){
+      var txns = acct.txns.slice().sort(function(a,b){ return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+      var opening = acct.openingBalance;
+      function balanceAsOf(targetIso){
+        var bal = opening || 0;
+        for(var k=0;k<txns.length;k++){ if(txns[k].date <= targetIso) bal += txns[k].net; else break; }
+        return bal;
+      }
+      var byPeriod = {};
+      periods.forEach(function(p){ byPeriod[p.key] = balanceAsOf(p.date); });
+      var firstBal = byPeriod[periods[0].key];
+      var lastBal = byPeriod[periods[periods.length-1].key];
+      return {
+        key: acct.id, label: acct.label, nominalCode: acct.nominalCode || "",
+        opening: opening, openingDate: acct.openingDate,
+        byPeriod: byPeriod, netChange: lastBal - firstBal, closing: lastBal
+      };
+    });
+    if(q) rows = rows.filter(function(r){ return r.label.toLowerCase().indexOf(q) !== -1; });
+    var key = state.pivotSort.key, dir = state.pivotSort.dir === "asc" ? 1 : -1;
+    rows.sort(function(a,b){
+      if(key === "label") return a.label.localeCompare(b.label, undefined, {numeric:true, sensitivity:"base"}) * dir;
+      if(key === "nominalcode") return (a.nominalCode||"").localeCompare(b.nominalCode||"", undefined, {numeric:true, sensitivity:"base"}) * dir;
+      var av = key === "total" ? a.closing : (key === "opening" ? (a.opening||0) : (a.byPeriod[key]!=null?a.byPeriod[key]:0));
+      var bv = key === "total" ? b.closing : (key === "opening" ? (b.opening||0) : (b.byPeriod[key]!=null?b.byPeriod[key]:0));
+      return (av-bv) * dir;
+    });
+    return rows;
+  }
+  // Half-monthly checkpoints are pinned to the 15th and the last calendar day of each month —
+  // fixed, predictable dates to check against a real statement — rather than a fixed 15-day
+  // step from the chosen end date, which would drift away from calendar mid-month/month-end
+  // over several months. Walks backward from the end date's month until it has `count`
+  // markers at or before that date, then returns them oldest-first.
+  function halfMonthCheckpoints(endIso, count){
+    var p = endIso.split("-").map(Number);
+    var y = p[0], m0 = p[1] - 1;
+    var out = [];
+    while(out.length < count){
+      var daysInMonth = new Date(Date.UTC(y, m0 + 1, 0)).getUTCDate();
+      var lastDay = isoOf(y, m0, daysInMonth);
+      var fifteenth = isoOf(y, m0, 15);
+      if(lastDay <= endIso) out.push(lastDay);
+      if(out.length < count && fifteenth <= endIso) out.push(fifteenth);
+      m0 -= 1;
+      if(m0 < 0){ m0 = 11; y -= 1; }
+    }
+    out = out.slice(0, count);
+    out.reverse();
+    return out;
+  }
+  function buildBankReport(){
+    var endIso = bankEndDate.value || defaultBankEndDate();
+    var mode = bankPeriod.value;
+    var periods = [];
+    if(mode === "H"){
+      periods = halfMonthCheckpoints(endIso, 12).map(function(d, idx){ return {key:String(idx), date:d, label: formatDMonYY(d)}; });
+    } else {
+      for(var i=11;i>=0;i--){
+        var stepMonths = mode === "Y" ? 12 : 1;
+        var d = addMonthsClamped(endIso, -(i*stepMonths));
+        periods.push({key:String(i), date:d, label: formatDMonYY(d)});
+      }
+    }
+    var rows = bankRowsForPeriods(periods, bankSearch.value);
+    return {periods: periods, rows: rows};
+  }
+  function buildBankDailyReport(){
+    var anchor = bankDailyDate.value || defaultBankEndDate();
+    var p = anchor.split("-").map(Number);
+    var y = p[0], m0 = p[1] - 1;
+    var daysInMonth = new Date(Date.UTC(y, m0 + 1, 0)).getUTCDate();
+    var periods = [];
+    for(var day = 1; day <= daysInMonth; day++){
+      var iso = isoOf(y, m0, day);
+      periods.push({key:String(day), date: iso, label: formatDMonYY(iso)});
+    }
+    var rows = bankRowsForPeriods(periods, bankDailySearch.value);
+    return {periods: periods, rows: rows, monthLabel: MONTHS_SHORT[m0] + " " + y};
+  }
+  function renderBankHead(periods){
+    headRow.innerHTML = "";
+    function mkTh(keyId, label, numeric){
+      var th = document.createElement("th");
+      if(numeric) th.classList.add("num");
+      th.innerHTML = esc(label) + '<span class="arrow">▲</span>';
+      if(state.pivotSort.key === keyId){ th.dataset.sorted = state.pivotSort.dir; th.querySelector(".arrow").textContent = state.pivotSort.dir === "asc" ? "▲" : "▼"; }
+      th.addEventListener("click", function(){
+        if(state.pivotSort.key === keyId){ state.pivotSort.dir = state.pivotSort.dir === "asc" ? "desc" : "asc"; }
+        else { state.pivotSort.key = keyId; state.pivotSort.dir = keyId === "label" ? "asc" : "desc"; }
+        render();
+      });
+      return th;
+    }
+    headRow.appendChild(mkTh("nominalcode", "Nominal code", false));
+    headRow.appendChild(mkTh("label", "Account", false));
+    headRow.appendChild(mkTh("opening", "Opening", true));
+    periods.forEach(function(p){ headRow.appendChild(mkTh(p.key, p.label, true)); });
+    headRow.appendChild(mkTh("total", "Net change", true));
+  }
+  function renderBankBody(periods, rows){
+    bodyRows.innerHTML = "";
+    if(rows.length === 0){
+      var tr = document.createElement("tr"); tr.className = "empty-row";
+      var td = document.createElement("td"); td.colSpan = periods.length + 4; td.textContent = "No accounts match this filter.";
+      tr.appendChild(td); bodyRows.appendChild(tr); return;
+    }
+    var frag = document.createDocumentFragment();
+    var colTotals = {}; periods.forEach(function(p){ colTotals[p.key] = 0; });
+    var openingTotal = 0, openingKnownCount = 0, netChangeTotal = 0;
+    rows.forEach(function(r){
+      var tr = document.createElement("tr");
+      var tdCode = document.createElement("td");
+      tdCode.textContent = r.nominalCode || "–";
+      if(!r.nominalCode) tdCode.title = "Couldn't confidently match this account to a nominal code in the chart of accounts.";
+      tr.appendChild(tdCode);
+      var tdLabel = document.createElement("td"); tdLabel.textContent = r.label; tr.appendChild(tdLabel);
+      var tdOpen = document.createElement("td"); tdOpen.className = "num tabular";
+      if(r.opening != null){ tdOpen.textContent = money(r.opening); openingTotal += r.opening; openingKnownCount++; }
+      else { tdOpen.textContent = "–"; tdOpen.title = "No recorded opening balance found for this account — balances shown are cumulative movement from the transactions in this backup only."; }
+      tr.appendChild(tdOpen);
+      periods.forEach(function(p){
+        var td = document.createElement("td"); td.className = "num tabular";
+        var v = r.byPeriod[p.key] || 0;
+        td.textContent = money(v);
+        colTotals[p.key] += v;
+        tr.appendChild(td);
+      });
+      var tdNet = document.createElement("td"); tdNet.className = "num tabular"; tdNet.textContent = money(r.netChange);
+      netChangeTotal += r.netChange;
+      tr.appendChild(tdNet);
+      frag.appendChild(tr);
+    });
+    var totalTr = document.createElement("tr"); totalTr.className = "total-row";
+    var totalCodeTd = document.createElement("td"); totalTr.appendChild(totalCodeTd);
+    var totalLabelTd = document.createElement("td"); totalLabelTd.textContent = "Total"; totalTr.appendChild(totalLabelTd);
+    var totalOpenTd = document.createElement("td"); totalOpenTd.className = "num tabular";
+    totalOpenTd.textContent = openingKnownCount ? money(openingTotal) : "–";
+    totalTr.appendChild(totalOpenTd);
+    periods.forEach(function(p){
+      var td = document.createElement("td"); td.className = "num tabular"; td.textContent = money(colTotals[p.key]);
+      totalTr.appendChild(td);
+    });
+    var totalNetTd = document.createElement("td"); totalNetTd.className = "num tabular"; totalNetTd.textContent = money(netChangeTotal);
+    totalTr.appendChild(totalNetTd);
+    frag.appendChild(totalTr);
+    bodyRows.appendChild(frag);
+  }
+  function renderBank(){
+    var built = buildBankReport();
+    renderBankHead(built.periods);
+    renderBankBody(built.periods, built.rows);
+    var totalClosing = built.rows.reduce(function(s,r){ return s + r.closing; }, 0);
+    var totalNet = built.rows.reduce(function(s,r){ return s + r.netChange; }, 0);
+    var stepLabel = {M:"Monthly", H:"Half-monthly", Y:"Yearly"}[bankPeriod.value] || "Monthly";
+    setStat(1, "Accounts shown", built.rows.length.toLocaleString("en-GB"));
+    setStat(2, stepLabel + " as of", built.periods.length ? built.periods[built.periods.length-1].label : "–");
+    setStat(3, "Total cash £", money(totalClosing));
+    setStat(4, "Net change £", money(totalNet));
+    state.lastBank = built;
+  }
+  function renderBankDaily(){
+    var built = buildBankDailyReport();
+    renderBankHead(built.periods);
+    renderBankBody(built.periods, built.rows);
+    var totalClosing = built.rows.reduce(function(s,r){ return s + r.closing; }, 0);
+    var totalNet = built.rows.reduce(function(s,r){ return s + r.netChange; }, 0);
+    setStat(1, "Accounts shown", built.rows.length.toLocaleString("en-GB"));
+    setStat(2, "Month shown", built.monthLabel);
+    setStat(3, "Total cash £", money(totalClosing));
+    setStat(4, "Net change £", money(totalNet));
+    state.lastBank = built;
+  }
+  function bankToCsv(built){
+    var header = ["Nominal code","Account","Opening"].concat(built.periods.map(function(p){ return p.label; })).concat(["Net change"]);
+    var lines = [header.map(csvField).join(",")];
+    var colTotals = {}; built.periods.forEach(function(p){ colTotals[p.key] = 0; });
+    var openTotal = 0, netTotal = 0;
+    built.rows.forEach(function(r){
+      var row = [r.nominalCode || "", r.label, r.opening != null ? r.opening.toFixed(2) : ""].concat(built.periods.map(function(p){ colTotals[p.key] += r.byPeriod[p.key]||0; return (r.byPeriod[p.key]||0).toFixed(2); })).concat([r.netChange.toFixed(2)]);
+      if(r.opening != null) openTotal += r.opening;
+      netTotal += r.netChange;
+      lines.push(row.map(csvField).join(","));
+    });
+    var totalRow = ["", "Total", openTotal ? openTotal.toFixed(2) : ""].concat(built.periods.map(function(p){ return colTotals[p.key].toFixed(2); })).concat([netTotal.toFixed(2)]);
+    lines.push(totalRow.map(csvField).join(","));
+    return lines.join("\r\n");
+  }
+  function buildBankAccountsFromRaw(bankRawList, nominalLedgerRows, openingBalanceRows, coaRows){
+    // Every account here comes from an actual Bank_<id>.csv file found in the backup's
+    // Bank_Accounts folder — this never invents an entry for a nominal code that doesn't
+    // have a real bank file behind it. The only extra step is a *label* lookup: match each
+    // bank file's own transaction references against Nominal_Ledger.csv postings, restricted
+    // to nominal codes in the 1200-1299 range (QuickFile's conventional bank/cash range, so
+    // ordinary sales/purchase nominal codes are never candidates), to find which nominal code
+    // that bank account is posted under, then read its name from chart_of_accounts.csv.
+    var coaByCode = {};
+    (coaRows||[]).forEach(function(r){ coaByCode[padNominal(r.NOMINALCODE)] = clean(r.ACCOUNTNAME); });
+    var candidateCodes = Object.keys(coaByCode).filter(function(c){ var n = parseInt(c,10); return n >= 1200 && n <= 1299; });
+    var refsByCode = {};
+    candidateCodes.forEach(function(c){ refsByCode[c] = new Set(); });
+    (nominalLedgerRows||[]).forEach(function(r){
+      var code = padNominal(r["NOMINAL CODE"]);
+      if(refsByCode[code]){ var ref = clean(r.REFERENCE); if(ref) refsByCode[code].add(ref); }
+    });
+    var openingByCode = {};
+    (openingBalanceRows||[]).forEach(function(r){
+      var code = padNominal(r.NOMINALCODE);
+      var amt = toNum(r.AMOUNT);
+      if(!openingByCode[code]) openingByCode[code] = {amount:0, date:""};
+      openingByCode[code].amount += amt;
+      var d = parseQFDate(r.DATE);
+      if(d.iso && (!openingByCode[code].date || d.iso > openingByCode[code].date)) openingByCode[code].date = d.iso;
+    });
+    // A genuine bank feed and its nominal code should share nearly all the same reference
+    // text, since QuickFile posts one ledger line per bank transaction. Only accept a match
+    // this confident (>=80% overlap, >=5 shared references), assigned greedily by highest
+    // overlap first, so an account that can't be confidently identified is left generically
+    // labelled rather than mislabeled.
+    var scored = [];
+    bankRawList.forEach(function(bank){
+      var bankRefs = new Set();
+      bank.rows.forEach(function(r){ var ref = clean(r.REFERENCE); if(ref) bankRefs.add(ref); });
+      candidateCodes.forEach(function(code){
+        var codeRefs = refsByCode[code];
+        if(!codeRefs.size || !bankRefs.size) return;
+        var overlap = 0;
+        bankRefs.forEach(function(ref){ if(codeRefs.has(ref)) overlap++; });
+        var ratio = overlap / bankRefs.size;
+        if(overlap >= 5 && ratio >= 0.8) scored.push({bank:bank, code:code, overlap:overlap});
+      });
+    });
+    scored.sort(function(a,b){ return b.overlap - a.overlap; });
+    var usedBanks = new Set(), usedCodes = new Set();
+    scored.forEach(function(s){
+      if(usedBanks.has(s.bank.id) || usedCodes.has(s.code)) return;
+      usedBanks.add(s.bank.id); usedCodes.add(s.code);
+      s.bank.matchedCode = s.code;
+      s.bank.matchedName = coaByCode[s.code] || "";
+    });
+    return bankRawList.map(function(bank){
+      var label, opening = null, openingDate = null;
+      if(bank.matchedCode){
+        label = bank.matchedName || bank.matchedCode;
+        var ob = openingByCode[bank.matchedCode];
+        if(ob){ opening = ob.amount; openingDate = ob.date; }
+      } else {
+        label = "Bank account " + bank.id;
+      }
+      var txns = bank.rows.map(function(r){
+        var d = parseQFDate(r.DATE);
+        return {date: d.iso, net: toNum(r["MONEY IN"]) - toNum(r["MONEY OUT"])};
+      }).filter(function(t){ return t.date; });
+      return {id: bank.id, label: label, nominalCode: bank.matchedCode || "", openingBalance: opening, openingDate: openingDate, txns: txns};
+    });
+  }
+
+  // ---------- zip loading ----------
+  var NEEDED_FILES = ["Sales_Invoice_Items.csv","Sales_Invoice.csv","Purchase_Invoice_Items.csv","Purchase_Invoice.csv","chart_of_accounts.csv","Nominal_Ledger.csv","Opening-Balances.csv","Client_Ledger.csv","Supplier_Ledger.csv"];
+  function findEntry(zip, filename){
+    var lower = filename.toLowerCase();
+    var keys = Object.keys(zip.files);
+    for(var i=0;i<keys.length;i++){
+      var k = keys[i];
+      if(zip.files[k].dir) continue;
+      if(k.split("/").pop().toLowerCase() === lower) return zip.files[k];
+    }
+    return null;
+  }
+  function parseCsvText(text){ return Papa.parse(text, {header:true, skipEmptyLines:true}).data; }
+
+  function handleZip(file){
+    showError("");
+    fileName.textContent = "Reading " + file.name + "…";
+    JSZip.loadAsync(file).then(function(zip){
+      var tables = {};
+      var jobs = NEEDED_FILES.map(function(name){
+        var entry = findEntry(zip, name);
+        if(!entry){ tables[name] = null; return Promise.resolve(); }
+        return entry.async("string").then(function(text){ tables[name] = parseCsvText(text); });
+      });
+      // Bank statement files are named Bank_<id>.csv, where <id> is a number specific to
+      // each QuickFile account, so they can't be matched by a fixed filename — find every
+      // file matching that pattern anywhere in the zip instead.
+      var bankRaw = [];
+      var bankKeys = Object.keys(zip.files).filter(function(k){
+        if(zip.files[k].dir) return false;
+        return /^Bank_\d+\.csv$/i.test(k.split("/").pop());
+      });
+      var bankJobs = bankKeys.map(function(k){
+        var m = k.split("/").pop().match(/^Bank_(\d+)\.csv$/i);
+        var id = m ? m[1] : k;
+        return zip.files[k].async("string").then(function(text){
+          bankRaw.push({id: id, rows: parseCsvText(text)});
+        });
+      });
+      return Promise.all(jobs.concat(bankJobs)).then(function(){ return {tables: tables, bankRaw: bankRaw}; });
+    }).then(function(result){
+      var tables = result.tables, bankRaw = result.bankRaw;
+      ["sales","purchases"].forEach(function(id){
+        var report = REPORTS[id];
+        var ok = report.requiredFiles.every(function(f){ return !!tables[f]; });
+        state.availableReports[id] = ok;
+        if(ok) state.rows[id] = report.build(tables);
+      });
+      if(bankRaw.length){
+        state.bankAccounts = buildBankAccountsFromRaw(bankRaw, tables["Nominal_Ledger.csv"] || [], tables["Opening-Balances.csv"] || [], tables["chart_of_accounts.csv"] || []);
+        state.availableReports.bank = true;
+      } else {
+        state.bankAccounts = [];
+        state.availableReports.bank = false;
+      }
+      if(!state.availableReports.sales && !state.availableReports.purchases){
+        showError("This zip doesn't look like a QuickFile backup — none of Sales_Invoice.csv, Sales_Invoice_Items.csv, Purchase_Invoice.csv or Purchase_Invoice_Items.csv were found inside it.");
+        fileName.textContent = "No backup loaded — showing example data";
+        return;
+      }
+      state.isExample = false;
+      exampleBanner.hidden = true;
+      refreshReportOptions();
+      fileName.textContent = file.name;
+      var id = state.activeReport;
+      if(!reportAvailable(id)){ id = state.availableReports.sales ? "sales" : "purchases"; }
+      setActiveReport(id);
+    }).catch(function(err){
+      console.error(err);
+      showError("Couldn't read that zip file (" + (err && err.message ? err.message : "unknown error") + "). Make sure it's the .zip QuickFile gives you from Settings → Backup, unopened and unedited.");
+      fileName.textContent = "No backup loaded — showing example data";
+    });
+  }
+
+  // ---------- wiring ----------
+  reportSelect.addEventListener("change", function(){ setActiveReport(reportSelect.value); });
+  [fSearch, fParty, fNominal, fStatus, fFrom, fTo].forEach(function(el){
+    el.addEventListener("input", render); el.addEventListener("change", render);
+  });
+  [fEndMonthNum, fEndYear, fPivotSearch].forEach(function(el){
+    el.addEventListener("input", render); el.addEventListener("change", render);
+  });
+  resetDetailBtn.addEventListener("click", function(){
+    fSearch.value=""; fParty.value=""; fNominal.value=""; fStatus.value=""; fFrom.value=""; fTo.value=""; render();
+  });
+  resetPivotBtn.addEventListener("click", function(){
+    var activeCfg = REPORTS[state.activeReport];
+    setEndMonthValue(defaultEndMonth(activeCfg.kind === "profit" ? "profit" : activeCfg.sourceReport));
+    fPivotSearch.value = ""; render();
+  });
+  copyDetailBtn.addEventListener("click", copyCurrent);
+  downloadDetailBtn.addEventListener("click", downloadCurrent);
+  copyPivotBtn.addEventListener("click", copyCurrent);
+  downloadPivotBtn.addEventListener("click", downloadCurrent);
+  [yoyGroupBy, yoyEndYear, yoyEndDate, yoySearch].forEach(function(el){
+    el.addEventListener("input", render); el.addEventListener("change", render);
+  });
+  resetYoyBtn.addEventListener("click", function(){
+    var cfg = REPORTS[state.activeReport];
+    populateYoyGroupBy(cfg);
+    if(cfg.dateMode === "calendarYear"){ yoyEndYear.value = defaultEndYear(cfg.sourceReport); }
+    else { yoyEndDate.value = defaultEndDateIso(cfg.sourceReport); }
+    yoySearch.value = ""; render();
+  });
+  copyYoyBtn.addEventListener("click", copyCurrent);
+  downloadYoyBtn.addEventListener("click", downloadCurrent);
+  [bankPeriod, bankEndDate, bankSearch].forEach(function(el){
+    el.addEventListener("input", render); el.addEventListener("change", render);
+  });
+  resetBankBtn.addEventListener("click", function(){
+    bankPeriod.value = "M"; bankEndDate.value = defaultBankEndDate(); bankSearch.value = ""; render();
+  });
+  copyBankBtn.addEventListener("click", copyCurrent);
+  downloadBankBtn.addEventListener("click", downloadCurrent);
+  [bankDailyDate, bankDailySearch].forEach(function(el){
+    el.addEventListener("input", render); el.addEventListener("change", render);
+  });
+  resetBankDailyBtn.addEventListener("click", function(){
+    bankDailyDate.value = defaultBankEndDate(); bankDailySearch.value = ""; render();
+  });
+  copyBankDailyBtn.addEventListener("click", copyCurrent);
+  downloadBankDailyBtn.addEventListener("click", downloadCurrent);
+  zipInput.addEventListener("change", function(e){
+    var file = e.target.files && e.target.files[0];
+    if(file) handleZip(file);
+  });
+
+  // ---------- boot ----------
+  function start(){
+    refreshReportOptions();
+    setActiveReport("sales");
+  }
+  if(window.claude && window.claude.hot && window.claude.hot.ready){ window.claude.hot.ready(start); }
+  else { start(); }
+})();
+</script>
